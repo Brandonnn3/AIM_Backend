@@ -1,0 +1,2518 @@
+{
+	"info": {
+		"_postman_id": "e285c1fc-f8d6-4730-b101-8e534880cc5b",
+		"name": "AIMConstruction",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "14497323",
+		"_collection_link": "https://mohammad-sheakh.postman.co/workspace/Mohammad-Sheakh-Personal~b4e7eb11-5dcf-49bf-ab26-6d44e6c119e5/collection/14497323-e285c1fc-f8d6-4730-b101-8e534880cc5b?action=share&source=collection_link&creator=14497323"
+	},
+	"item": [
+		{
+			"name": "ProjectManager And ProjectSupervisor",
+			"item": [
+				{
+					"name": "Auth",
+					"item": [
+						{
+							"name": "🧪registration",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"fname\": \"Image Super\",\r\n    \"lname\": \"Image\",\r\n    \"email\": \"aaa@gmail.com\",\r\n    \"password\": \"1qazxsw2\",\r\n    \"companyId\" : \"6809cfed566c56f8591681b2\",\r\n    // \"profileImage\": \"\", \r\n    // 🔴 address actually jacche kina check korte hobe \r\n    // \"address\" : {\r\n    //     \"country\" : \"Bangladesg\",\r\n    //     \"zipCode\" : \"1222\",\r\n    //     \"city\" : \"Dhaka\",\r\n    //     \"streetAddress\" : \"233, North PUreHome\"\r\n    // },\r\n    \"role\": \"projectSupervisor\", // projectSupervisor  // projectManager\r\n    \"superVisorsManagerId\" : \"680c9e901af8389511138a25\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{shob}}auth/register",
+									"host": [
+										"{{shob}}auth"
+									],
+									"path": [
+										"register"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪login",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"// Parse the JSON response body\r",
+											"let response = pm.response.json();\r",
+											"\r",
+											"// Check if the response code is 200 (Login Successful)\r",
+											"if (response.code === 200) {\r",
+											"    // Extract the access token\r",
+											"    let accessToken = response.data.attributes.tokens.accessToken;\r",
+											"    \r",
+											"    // Set the access token in a global variable\r",
+											"    pm.globals.set(\"userAccessToken\", accessToken);\r",
+											"    \r",
+											"    console.log(\"Access token set in global variable: userAccessToken\");\r",
+											"} else {\r",
+											"    console.log(\"Login failed: \" + response.message);\r",
+											"}"
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								},
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"email\" : \"\",  // mohammad.sheakh@gmail.com -- projectManager  // mohammad.sheakh01@gmail.com -- projectSupervisor \r\n    \"password\" : \"\", // 1qazxsw2 // 1qazxsw21\r\n     \"fcmToken\":\"cOLKxnGSTQ-WEtJ7kw_q-I:APA91bEVLxsJBq1HO8-4KK5fXvOEUA7ngkkuibIYMKqAbGGcj7SprgjgC1iJqABdECc2rO2ey7d66-ytKunV2ccYoTUYnGQIprGBH-918rbU3zopH3FLwgM\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{shob}}auth/login",
+									"host": [
+										"{{shob}}auth"
+									],
+									"path": [
+										"login"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪forgetPassword",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"email\" : \"mohammad.sheakh@gmail.com\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{shob}}/auth/forgot-password",
+									"host": [
+										"{{shob}}"
+									],
+									"path": [
+										"auth",
+										"forgot-password"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪verifyEmail",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2N2MyOWMyZGFjYWUzN2Q5YzlkMzQ0MzkiLCJlbWFpbCI6Im1vaGFtbWFkLnNoZWFraEBnbWFpbC5jb20iLCJyb2xlIjoicHJvamVjdE1hbmFnZXIiLCJpYXQiOjE3NDA4MDcyMTMsImV4cCI6MTc0MDgwNzgxM30.PaWTl3C6JHriRXxAVxSjmQUCRXuCJlyi9K_LPRTyRYE",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"email\" : \"mohammad.sheakh01@gmail.com\",\r\n    \"otp\" : \"645602\",\r\n    \"token\" : \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODAzMWFkYTZjODdjZjczMDhkNTc4ZDMiLCJlbWFpbCI6Im1vaGFtbWFkLnNoZWFraDAxQGdtYWlsLmNvbSIsInJvbGUiOiJwcm9qZWN0U3VwZXJ2aXNvciIsImlhdCI6MTc0NTAzMzk0NiwiZXhwIjoxNzQ1MDM0NTQ2fQ.Zaw5XAD-f0utC4-ku47CdeaOSftP9xCvPT9NUrdf3tQ\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{local}}/auth/verify-email",
+									"host": [
+										"{{local}}"
+									],
+									"path": [
+										"auth",
+										"verify-email"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪resetPassword",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"email\" : \"mohammad.sheakh@gmail.com\",\r\n    \"otp\" : \"138701\",\r\n    \"password\" : \"1qazxsw22\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{local}}/auth/reset-password",
+									"host": [
+										"{{local}}"
+									],
+									"path": [
+										"auth",
+										"reset-password"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪changePassword",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"currentPassword\": \"1qazxsw22\",\r\n    \"newPassword\": \"1qazxsw22\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{shob}}/auth/change-password",
+									"host": [
+										"{{shob}}"
+									],
+									"path": [
+										"auth",
+										"change-password"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "getRefreshToken",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n\r\n    \"refreshToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2N2M2NTZiNmNjMmEwODAwNjU4OWFmZGUiLCJ1c2VyTmFtZSI6IlNoZWFraCBBQkMiLCJlbWFpbCI6Im1vaGFtbWFkLnNoZWFraDAxQGdtYWlsLmNvbSIsInJvbGUiOiJwcm9qZWN0U3VwZXJ2aXNvciIsImlhdCI6MTc0MjcwOTAxOCwiZXhwIjoxNzc0MjQ1MDE4fQ.MYtVxbPrO0pUi-Na6U5dDsK38InJBfLQGyTOBwdrqj4\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{shob}}auth/refresh-auth",
+									"host": [
+										"{{shob}}auth"
+									],
+									"path": [
+										"refresh-auth"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "resend otp 🔥 kaj korte hobe",
+							"request": {
+								"method": "GET",
+								"header": []
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Attachments",
+					"item": [
+						{
+							"name": "CRUD",
+							"item": [
+								{
+									"name": "🧪getAll",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/attachment",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"attachment"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "getAll Paginate",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/attachment/paginate",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"attachment",
+												"paginate"
+											],
+											"query": [
+												{
+													"key": "projectName",
+													"value": "Mohammad",
+													"disabled": true
+												},
+												{
+													"key": "_id",
+													"value": "67c3147679cb61823ae90d0f",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "getById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/attachment/680c9ef01af8389511138a37",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"attachment",
+												"680c9ef01af8389511138a37"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "updateById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "PUT",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"projectName\": \"Mohammad13\"\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{homeurl}}/dailyLog/update/67c3147679cb61823ae90d0f",
+											"host": [
+												"{{homeurl}}"
+											],
+											"path": [
+												"dailyLog",
+												"update",
+												"67c3147679cb61823ae90d0f"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "deleteById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "DELETE",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/attachment/delete/67ccfb5d68553b7bd3676c7c",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"attachment",
+												"delete",
+												"67ccfb5d68553b7bd3676c7c"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🔖🧪create",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"projectName\" : \"sheakh\"\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{homeurl}}/dailyLog/create",
+											"host": [
+												"{{homeurl}}"
+											],
+											"path": [
+												"dailyLog",
+												"create"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "🧪AddOrRemoveReactOnAImage",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{shobhoy}}attachment/addOrRemoveReact/67ccfb0768553b7bd3676c66",
+									"host": [
+										"{{shobhoy}}attachment"
+									],
+									"path": [
+										"addOrRemoveReact",
+										"67ccfb0768553b7bd3676c66"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Note",
+					"item": [
+						{
+							"name": "CRUD",
+							"item": [
+								{
+									"name": "🧪getAll",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}note",
+											"host": [
+												"{{shob}}note"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🧪getAll Paginate",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/note/paginate?projectId=67ccfb1c68553b7bd3676c70",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"note",
+												"paginate"
+											],
+											"query": [
+												{
+													"key": "projectName",
+													"value": "Mohammad",
+													"disabled": true
+												},
+												{
+													"key": "projectId",
+													"value": "67ccfb1c68553b7bd3676c70"
+												}
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🧪getById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/note/680890438ac91a9e4064c0c2",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"note",
+												"680890438ac91a9e4064c0c2"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "updateById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "PUT",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"projectName\": \"Mohammad13\"\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{homeurl}}/project/update/67c3147679cb61823ae90d0f",
+											"host": [
+												"{{homeurl}}"
+											],
+											"path": [
+												"project",
+												"update",
+												"67c3147679cb61823ae90d0f"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "deleteById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "DELETE",
+										"header": [],
+										"url": {
+											"raw": "{{local}}/note/delete/67c91b1a28b461de91235c18",
+											"host": [
+												"{{local}}"
+											],
+											"path": [
+												"note",
+												"delete",
+												"67c91b1a28b461de91235c18"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🔖🧪create",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "formdata",
+											"formdata": [
+												{
+													"key": "title",
+													"value": "Today 2 Note 4 GGGG",
+													"type": "text"
+												},
+												{
+													"key": "description",
+													"value": "Today 2 Note 4",
+													"type": "text"
+												},
+												{
+													"key": "projectId",
+													"value": "68046ae89acce090e445ab4e",
+													"type": "text"
+												},
+												{
+													"key": "attachments",
+													"type": "file",
+													"src": [
+														"/C:/Users/Mohammad Sheakh/Downloads/ImageTwo.webp",
+														"/C:/Users/Mohammad Sheakh/Downloads/ImageOne.jpg"
+													]
+												}
+											]
+										},
+										"url": {
+											"raw": "{{local}}/note/create",
+											"host": [
+												"{{local}}"
+											],
+											"path": [
+												"note",
+												"create"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "🧪getAllByDateAndProjectId",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{shob}}/note/getAllByDateAndProjectId/?projectId=67e1240f19d54cd14944ba28&date=2025-04-17",
+									"host": [
+										"{{shob}}"
+									],
+									"path": [
+										"note",
+										"getAllByDateAndProjectId",
+										""
+									],
+									"query": [
+										{
+											"key": "projectId",
+											"value": "67e1240f19d54cd14944ba28"
+										},
+										{
+											"key": "date",
+											"value": "2025-04-17"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪getPreviewByDateAndProjectId",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{shob}}/note/getPreviewByDateAndProjectId/?projectId=68032d30d732bb4d0c31267d&date=2025-04-19",
+									"host": [
+										"{{shob}}"
+									],
+									"path": [
+										"note",
+										"getPreviewByDateAndProjectId",
+										""
+									],
+									"query": [
+										{
+											"key": "projectId",
+											"value": "68032d30d732bb4d0c31267d"
+										},
+										{
+											"key": "date",
+											"value": "2025-04-19"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪getAllimagesOrDocumentOFnoteOrTaskOrProjectByDateAndProjectId",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{local}}/note/getAllImagesOfAllNotesOfADateAndProjectId/?projectId=68046ae89acce090e445ab4e&date=2025-04-20&noteOrTaskOrProject=note&imageOrDocument=image&uploaderRole=projectSupervisor",
+									"host": [
+										"{{local}}"
+									],
+									"path": [
+										"note",
+										"getAllImagesOfAllNotesOfADateAndProjectId",
+										""
+									],
+									"query": [
+										{
+											"key": "projectId",
+											"value": "68046ae89acce090e445ab4e"
+										},
+										{
+											"key": "date",
+											"value": "2025-04-20"
+										},
+										{
+											"key": "noteOrTaskOrProject",
+											"value": "note"
+										},
+										{
+											"key": "imageOrDocument",
+											"value": "image"
+										},
+										{
+											"key": "uploaderRole",
+											"value": "projectSupervisor",
+											"description": "projectManager   /  projectSupervisor"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪getAllImagesOrDocumentsOfAllNotesOfAProjectId",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{shob}}/project/getAllImagesOfAllNotesOfAProjectId/?projectId=68046ae89acce090e445ab4e&imageOrDocument=image&uploaderRole=projectSupervisor",
+									"host": [
+										"{{shob}}"
+									],
+									"path": [
+										"project",
+										"getAllImagesOfAllNotesOfAProjectId",
+										""
+									],
+									"query": [
+										{
+											"key": "projectId",
+											"value": "68046ae89acce090e445ab4e"
+										},
+										{
+											"key": "imageOrDocument",
+											"value": "image"
+										},
+										{
+											"key": "uploaderRole",
+											"value": "projectSupervisor",
+											"description": "projectManager   /  projectSupervisor"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪changeStatus",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{shob}}/note/changeStatus/680890438ac91a9e4064c0c2",
+									"host": [
+										"{{shob}}"
+									],
+									"path": [
+										"note",
+										"changeStatus",
+										"680890438ac91a9e4064c0c2"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪changeStatus V2 🟢🟢🟢🟢🟢",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{shob}}/note/changeStatusOfANote/680890438ac91a9e4064c0c2?status=accepted",
+									"host": [
+										"{{shob}}"
+									],
+									"path": [
+										"note",
+										"changeStatusOfANote",
+										"680890438ac91a9e4064c0c2"
+									],
+									"query": [
+										{
+											"key": "status",
+											"value": "accepted",
+											"description": "denied / pending / accepted"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪uploadImagesOrDocuments",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "attachments",
+											"value": "",
+											"type": "file"
+										},
+										{
+											"key": "projectId",
+											"value": "67ccfb1c68553b7bd3676c70",
+											"type": "text"
+										},
+										{
+											"key": "noteOrTaskOrProject",
+											"value": "note",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{local}}/note/uploadImagesOrDocuments",
+									"host": [
+										"{{local}}"
+									],
+									"path": [
+										"note",
+										"uploadImagesOrDocuments"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "deleteAAttachment",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{local}}/attachment/delete/67c7e7ab636bcadae27c6333",
+									"host": [
+										"{{local}}"
+									],
+									"path": [
+										"attachment",
+										"delete",
+										"67c7e7ab636bcadae27c6333"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Project",
+					"item": [
+						{
+							"name": "CRUD",
+							"item": [
+								{
+									"name": "🧪getAll",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/project",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"project"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🧪getAll Paginate",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/project/paginate?projectSuperVisorId=680c9fcd1af8389511138a48&projectStatus=open",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"project",
+												"paginate"
+											],
+											"query": [
+												{
+													"key": "projectName",
+													"value": "Today",
+													"disabled": true
+												},
+												{
+													"key": "_id",
+													"value": "67c3147679cb61823ae90d0f",
+													"disabled": true
+												},
+												{
+													"key": "projectSuperVisorId",
+													"value": "680c9fcd1af8389511138a48",
+													"description": "role dhore front-end theke hit korte hobe "
+												},
+												{
+													"key": "projectManagerId",
+													"value": "68047a7998823dcf62696286",
+													"disabled": true
+												},
+												{
+													"key": "projectStatus",
+													"value": "open"
+												}
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🧪getById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/project/68032d30d732bb4d0c31267d",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"project",
+												"68032d30d732bb4d0c31267d"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "updateById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2N2MzMTQyNzc5Y2I2MTgyM2FlOTBjZjYiLCJlbWFpbCI6Im1vaGFtbWFkLnNoZWFraEBnbWFpbC5jb20iLCJyb2xlIjoicHJvamVjdE1hbmFnZXIiLCJpYXQiOjE3NDA4Mzc5NzQsImV4cCI6MTc0MTI2OTk3NH0.imWBIsW2hJSK4IaFh_DU058cpiCnynxqcZMg2HqlnEU",
+													"type": "string"
+												}
+											]
+										},
+										"method": "PUT",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"projectName\": \"Mohammad13\"\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{localurl}}/project/update/67c3147679cb61823ae90d0f",
+											"host": [
+												"{{localurl}}"
+											],
+											"path": [
+												"project",
+												"update",
+												"67c3147679cb61823ae90d0f"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "deleteById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2N2MyOWMyZGFjYWUzN2Q5YzlkMzQ0MzkiLCJlbWFpbCI6Im1vaGFtbWFkLnNoZWFraEBnbWFpbC5jb20iLCJyb2xlIjoicHJvamVjdE1hbmFnZXIiLCJpYXQiOjE3NDA4MTQwNjgsImV4cCI6MTc0MTI0NjA2OH0.K632dJ7uMfxdOBO3auEXW5eknmbdndSj_2wpL-q4m1E",
+													"type": "string"
+												}
+											]
+										},
+										"method": "DELETE",
+										"header": [],
+										"url": {
+											"raw": "{{homeurl}}/project/delete/67c3147e79cb61823ae90d15",
+											"host": [
+												"{{homeurl}}"
+											],
+											"path": [
+												"project",
+												"delete",
+												"67c3147e79cb61823ae90d15"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🔖🧪create",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "formdata",
+											"formdata": [
+												{
+													"key": "projectName",
+													"value": "Today Project Imagems",
+													"type": "text"
+												},
+												{
+													"key": "projectSuperVisorId",
+													"value": "680c9fcd1af8389511138a48",
+													"type": "text"
+												},
+												{
+													"key": "projectLogo",
+													"type": "file",
+													"src": "/C:/Users/Mohammad Sheakh/Downloads/ImageTwo.webp"
+												},
+												{
+													"key": "streetAddress",
+													"value": "dsds",
+													"type": "text"
+												},
+												{
+													"key": "city",
+													"value": "dsds",
+													"type": "text"
+												},
+												{
+													"key": "zipCode",
+													"value": "dsds",
+													"type": "text"
+												},
+												{
+													"key": "country",
+													"value": "dsds",
+													"type": "text"
+												}
+											]
+										},
+										"url": {
+											"raw": "{{local}}/project/create",
+											"host": [
+												"{{local}}"
+											],
+											"path": [
+												"project",
+												"create"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "getProjectByProjectName",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{localurl}}/project/search/testProject",
+									"host": [
+										"{{localurl}}"
+									],
+									"path": [
+										"project",
+										"search",
+										"testProject"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪getAllProjectsByUserId 🔴",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{local}}/user/projects",
+									"host": [
+										"{{local}}"
+									],
+									"path": [
+										"user",
+										"projects"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Task",
+					"item": [
+						{
+							"name": "CRUD",
+							"item": [
+								{
+									"name": "🧪getAll",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/task/",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"task",
+												""
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "getAll Paginate 🟢🟢🟢🟢🟢",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/task/paginate/?sortBy=-createdAt",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"task",
+												"paginate",
+												""
+											],
+											"query": [
+												{
+													"key": "title",
+													"value": "Title Of A Task",
+													"disabled": true
+												},
+												{
+													"key": "_id",
+													"value": "67ccfe33a8a85dd3b3cb4dff",
+													"disabled": true
+												},
+												{
+													"key": "project",
+													"value": "dsds",
+													"disabled": true
+												},
+												{
+													"key": "task_status",
+													"value": "open",
+													"disabled": true
+												},
+												{
+													"key": "projectId",
+													"value": "67e1240f19d54cd14944ba28",
+													"disabled": true
+												},
+												{
+													"key": "sortBy",
+													"value": "-createdAt"
+												}
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "getById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/task/680ca6d91af8389511138af2",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"task",
+												"680ca6d91af8389511138af2"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "updateById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "PUT",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"task_status\": \"complete\" //  done  open\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{shob}}/task/update/67f797383e5d3bf5b70600c4",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"task",
+												"update",
+												"67f797383e5d3bf5b70600c4"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "deleteById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "DELETE",
+										"header": [],
+										"url": {
+											"raw": "{{local}}/task/delete/67c92b2da9eaf4ad289d9c96",
+											"host": [
+												"{{local}}"
+											],
+											"path": [
+												"task",
+												"delete",
+												"67c92b2da9eaf4ad289d9c96"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🔖🧪create",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "formdata",
+											"formdata": [
+												{
+													"key": "projectId",
+													"value": "67f74e9c19bc08a16e94e46e",
+													"type": "text"
+												},
+												{
+													"key": "title",
+													"value": "Task Mohammad 9",
+													"type": "text"
+												},
+												{
+													"key": "description",
+													"value": "Task Description",
+													"type": "text"
+												},
+												{
+													"key": "attachments",
+													"type": "file",
+													"src": "/C:/Users/Mohammad Sheakh/Downloads/ImageOne.jpg",
+													"disabled": true
+												},
+												{
+													"key": "assignedTo",
+													"value": "67de784ffa7cf3d05b3fe9a3",
+													"type": "text"
+												},
+												{
+													"key": "dueDate",
+													"value": "2025-03-10T03:16:57.304Z",
+													"type": "text"
+												}
+											]
+										},
+										"url": {
+											"raw": "{{shob}}/task/create",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"task",
+												"create"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "🧪changeStatus",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{shob}}/task/changeStatus/680072f435cb40302bf2b5f9",
+									"host": [
+										"{{shob}}"
+									],
+									"path": [
+										"task",
+										"changeStatus",
+										"680072f435cb40302bf2b5f9"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "🧪changeStatus 🟢🟢🟢🟢",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{shob}}/task/changeStatusOfATask/680ca6d91af8389511138af2?status=complete",
+									"host": [
+										"{{shob}}"
+									],
+									"path": [
+										"task",
+										"changeStatusOfATask",
+										"680ca6d91af8389511138af2"
+									],
+									"query": [
+										{
+											"key": "status",
+											"value": "complete",
+											"description": "open  /  complete / denied"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Contract",
+					"item": [
+						{
+							"name": "CRUD",
+							"item": [
+								{
+									"name": "🧪getAll",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{local}}/contract",
+											"host": [
+												"{{local}}"
+											],
+											"path": [
+												"contract"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🧪getAll Paginate",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{local}}/contract/paginate?projectId=67f788fe3e5d3bf5b705ff87",
+											"host": [
+												"{{local}}"
+											],
+											"path": [
+												"contract",
+												"paginate"
+											],
+											"query": [
+												{
+													"key": "projectId",
+													"value": "67f788fe3e5d3bf5b705ff87"
+												}
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🧪getById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{local}}/contract/67c3147679cb61823ae90d0f",
+											"host": [
+												"{{local}}"
+											],
+											"path": [
+												"contract",
+												"67c3147679cb61823ae90d0f"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "updateById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "PUT",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"projectName\": \"Mohammad13\"\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{homeurl}}/contract/update/67c3147679cb61823ae90d0f",
+											"host": [
+												"{{homeurl}}"
+											],
+											"path": [
+												"contract",
+												"update",
+												"67c3147679cb61823ae90d0f"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "deleteById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "DELETE",
+										"header": [],
+										"url": {
+											"raw": "{{homeurl}}/contract/delete/67c3147e79cb61823ae90d15",
+											"host": [
+												"{{homeurl}}"
+											],
+											"path": [
+												"contract",
+												"delete",
+												"67c3147e79cb61823ae90d15"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🔖🧪create",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "formdata",
+											"formdata": [
+												{
+													"key": "projectId",
+													"value": "68046ae89acce090e445ab4e",
+													"type": "text"
+												},
+												{
+													"key": "attachments",
+													"type": "file",
+													"src": "/C:/Users/Mohammad Sheakh/Downloads/user.png"
+												}
+											]
+										},
+										"url": {
+											"raw": "{{local}}/contract/create",
+											"host": [
+												"{{local}}"
+											],
+											"path": [
+												"contract",
+												"create"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "User",
+					"item": [
+						{
+							"name": "CRUD",
+							"item": [
+								{
+									"name": "🧪getAll",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{local}}/user/",
+											"host": [
+												"{{local}}"
+											],
+											"path": [
+												"user",
+												""
+											],
+											"query": [
+												{
+													"key": "role",
+													"value": "projectSupervisor",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🧪getAll Paginate",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{local}}/user/paginate?role=projectSupervisor",
+											"host": [
+												"{{local}}"
+											],
+											"path": [
+												"user",
+												"paginate"
+											],
+											"query": [
+												{
+													"key": "role",
+													"value": "projectSupervisor"
+												},
+												{
+													"key": "_id",
+													"value": "67c3147679cb61823ae90d0f",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🧪getById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{shob}}/user/67de784ffa7cf3d05b3fe9a3",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"user",
+												"67de784ffa7cf3d05b3fe9a3"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🧪updateById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "PATCH",
+										"header": [],
+										"body": {
+											"mode": "formdata",
+											"formdata": [
+												{
+													"key": "fname",
+													"value": "imagem",
+													"type": "text"
+												},
+												{
+													"key": "lname",
+													"value": "imagem",
+													"type": "text"
+												},
+												{
+													"key": "profileImage",
+													"type": "file",
+													"src": "/C:/Users/Mohammad Sheakh/Downloads/ImageOne.jpg"
+												},
+												{
+													"key": "address",
+													"value": "Vong Chong",
+													"type": "text"
+												},
+												{
+													"key": "phoneNumber",
+													"value": "53543454353",
+													"type": "text"
+												}
+											]
+										},
+										"url": {
+											"raw": "{{shob}}/user/update-profile",
+											"host": [
+												"{{shob}}"
+											],
+											"path": [
+												"user",
+												"update-profile"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "deleteById",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "DELETE",
+										"header": [],
+										"url": {
+											"raw": "{{homeurl}}/user/delete/67c3147e79cb61823ae90d15",
+											"host": [
+												"{{homeurl}}"
+											],
+											"path": [
+												"user",
+												"delete",
+												"67c3147e79cb61823ae90d15"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "🔖🧪create",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{userAccessToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "formdata",
+											"formdata": []
+										},
+										"url": {
+											"raw": "{{homeurl}}/user/create",
+											"host": [
+												"{{homeurl}}"
+											],
+											"path": [
+												"user",
+												"create"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "getAllManager",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{local}}/user/getAllManager",
+									"host": [
+										"{{local}}"
+									],
+									"path": [
+										"user",
+										"getAllManager"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "getAllManager🟢🟢🟢🟢",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{local}}/user/getAllManagerByCompanyId?companyId=6809d03a566c56f8591681ba",
+									"host": [
+										"{{local}}"
+									],
+									"path": [
+										"user",
+										"getAllManagerByCompanyId"
+									],
+									"query": [
+										{
+											"key": "companyId",
+											"value": "6809d03a566c56f8591681ba"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "getAllSupervisorByManagerId internally",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{local}}/user/superVisors",
+									"host": [
+										"{{local}}"
+									],
+									"path": [
+										"user",
+										"superVisors"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "updateProfileImage",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "profileImage",
+											"type": "file",
+											"src": "/C:/Users/Mohammad Sheakh/Downloads/chuti eid.jpg"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{local}}user/profile-image",
+									"host": [
+										"{{local}}user"
+									],
+									"path": [
+										"profile-image"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Activity / Notification",
+					"item": [
+						{
+							"name": "Get All Notification",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{shob}}activity/?receiverId=68088c618ac91a9e4064be71&sortBy=-createdAt",
+									"host": [
+										"{{shob}}activity"
+									],
+									"path": [
+										""
+									],
+									"query": [
+										{
+											"key": "receiverId",
+											"value": "68088c618ac91a9e4064be71"
+										},
+										{
+											"key": "sortBy",
+											"value": "-createdAt"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Clear All Notifications",
+							"request": {
+								"method": "GET",
+								"header": []
+							},
+							"response": []
+						},
+						{
+							"name": "Get Admin Notification",
+							"request": {
+								"method": "GET",
+								"header": []
+							},
+							"response": []
+						},
+						{
+							"name": "Get  Single Notification",
+							"request": {
+								"method": "GET",
+								"header": []
+							},
+							"response": []
+						},
+						{
+							"name": "View Notification",
+							"request": {
+								"method": "GET",
+								"header": []
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Notification",
+							"request": {
+								"method": "GET",
+								"header": []
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Settings",
+					"item": [
+						{
+							"name": "createOrUpdateSettings",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"details\": \"test about us\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{shob}}/settings?type=aboutUs",
+									"host": [
+										"{{shob}}"
+									],
+									"path": [
+										"settings"
+									],
+									"query": [
+										{
+											"key": "details",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "type",
+											"value": "aboutUs",
+											"description": "termsAndConditions | privacyPolicy | contactUs | aboutUs"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "getDetailsByType",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{userAccessToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{shob}}settings?type=aboutUs",
+									"host": [
+										"{{shob}}settings"
+									],
+									"query": [
+										{
+											"key": "type",
+											"value": "aboutUs",
+											"description": "termsAndConditions | privacyPolicy | contactUs | aboutUs"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Company",
+					"item": [
+						{
+							"name": "create 🟢🟢🟢🟢",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"name\": \"\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{shob}}company/create",
+									"host": [
+										"{{shob}}company"
+									],
+									"path": [
+										"create"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "getByCompanyName 🟢🟢🟢🟢",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{local}}company/getByName?companyName=ds",
+									"host": [
+										"{{local}}company"
+									],
+									"path": [
+										"getByName"
+									],
+									"query": [
+										{
+											"key": "companyName",
+											"value": "ds"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "New Request",
+							"request": {
+								"method": "GET",
+								"header": []
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "local",
+			"value": "http://172.30.178.64:6731/api/v1/",
+			"type": "string"
+		},
+		{
+			"key": "shob",
+			"value": "https://sheakh6731.sobhoy.com/api/v1/",
+			"type": "string"
+		},
+		{
+			"key": "home",
+			"value": "http://localhost:8080/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2N2MzZGVlZDQ3ODdhZWYzYjBjOWYxOGEiLCJlbWFpbCI6Im1vaGFtbWFkLnNoZWFraEBnbWFpbC5jb20iLCJyb2xlIjoicHJvamVjdE1hbmFnZXIiLCJpYXQiOjE3NDA4OTE1NjQsImV4cCI6MTc0MTMyMzU2NH0.V9wT2fsQwcjSwS-KFhfdWJSzVcbP8SEH6wY12TgRtLQ",
+			"type": "string"
+		},
+		{
+			"key": "host",
+			"value": "http://localhost:6731/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "ngrok",
+			"value": "https://b147-115-127-68-201.ngrok-free.app/",
+			"type": "string"
+		}
+	]
+}
