@@ -5,7 +5,6 @@ import { PaginateOptions, PaginateResult } from '../../types/paginate';
 
 export type TProfileImage = {
   imageUrl: string;
-  // file: Record<string, any>;
 };
 
 export type TPhotoGallery = {
@@ -15,24 +14,20 @@ export type TPhotoGallery = {
 
 export type TUser = {
   _userId: undefined | Types.ObjectId;
-  _id:  undefined; // Types.ObjectId |
-  // fullName: string;
+  _id:  undefined; 
   fname: string;
   lname: string;
   email: string;
   password: string;
   profileImage?: TProfileImage;
-  fcmToken : string;
-  // photoGallery?: TPhotoGallery[];
-  // status: TUserStatus;
-  // location: {
-  //   latitude: number;
-  //   longitude: number;
-  // };
-  // gender: TGender;
+  fcmToken : string | null;
   address: string;
   companyName : string;
   role: Role;
+  
+  // ADDED THIS LINE to match the logic in auth.service.ts
+  companyId?: Types.ObjectId | null; 
+  
   superVisorsManagerId?: Types.ObjectId | null;
   isEmailVerified: boolean;
   phoneNumber : string;

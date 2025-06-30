@@ -9,30 +9,24 @@ const upload = multer({ storage: storage });
 
 const router = express.Router();
 
-//info : pagination route must be before the route with params
-// router.route('/paginate').get(
-//   auth('projectManager'),
-//   ContractController.getAllCompanyWithPagination
-// );
-
-// router.route('/:contractId').get(
-//   auth('projectManager'),
-//   ContractController.getACompany
-// );
-
 router.route('/update/:contractId').put(
   auth('projectManager'),
-  // validateRequest(UserValidation.createUserValidationSchema),
   CompanyController.updateById
 );
 
 router.route('/').get(auth('projectManager'), CompanyController.getAllCompany);
 
-//[🚧][🧑‍💻✅][🧪🆗 ]
-router.route('/create').post(CompanyController.createCompany);
+// MODIFIED: Added the auth() middleware to protect this route.
+router.route('/create').post(
+    auth('projectManager'), 
+    CompanyController.createCompany
+);
 
-// [🚧][🧑‍💻✅][🧪🆗 ]
-router.route('/getByName').post(CompanyController.getACompanyByName);
+// MODIFIED: Added the auth() middleware to protect this route.
+router.route('/getByName').post(
+    auth('projectManager'), 
+    CompanyController.getACompanyByName
+);
 
 router
   .route('/delete/:contractId')

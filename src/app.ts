@@ -8,6 +8,7 @@ import router from './routes';
 import { Morgan } from './shared/morgen';
 import i18next from './i18n/i18n'; // Import the i18next configuration
 import i18nextMiddleware from 'i18next-express-middleware';
+import listEndpoints from 'express-list-endpoints'; // NEW: Add this import at the top
 
 const app = express();
 
@@ -48,14 +49,9 @@ app.get('/test', (req: Request, res: Response) => {
 
 app.get('/test/:lang', (req: Request, res: Response) => {
   const { lang } = req.params;
-
-  // Change the language dynamically for the current request
-  i18next.changeLanguage(lang); // Switch language
-
-  console.log(`Current language: ${i18next.language}`); // Log the current language
-
-  // Send the translated response
-  res.status(200).json({ message: req.t('welcome') }); // Get translated 'welcome' message
+  i18next.changeLanguage(lang);
+  console.log(`Current language: ${i18next.language}`);
+  res.status(200).json({ message: req.t('welcome') });
 });
 
 // global error handle
@@ -63,5 +59,14 @@ app.use(globalErrorHandler);
 
 // handle not found route
 app.use(notFound);
+
+
+// =========================================================
+// NEW: Add this temporary debugging code
+// =========================================================
+console.log('--- DEFINED API ENDPOINTS ---');
+console.log(listEndpoints(app));
+// =========================================================
+
 
 export default app;

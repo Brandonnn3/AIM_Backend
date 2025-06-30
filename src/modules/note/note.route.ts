@@ -35,7 +35,7 @@ router
 //[🚧][🧑‍💻✅][🧪🆗]
 router.route('/:noteId').get(auth('common'), NoteController.getANote);
 
-//[🚧][🧑‍💻✅][🧪🆗]
+//[🚧][🧑‍�✅][🧪🆗]
 router
   .route('/changeStatus/:noteId')
   .get(auth('projectManager'), NoteController.changeStatusOfANote);
@@ -60,9 +60,8 @@ router.route('/create').post(
       { name: 'attachments', maxCount: 15 }, // Allow up to 5 cover photos
     ]),
   ],
-  auth('projectSupervisor'), // INFO :  but eta only superVisor er create korar kotha
-  // validateRequest(UserValidation.createUserValidationSchema),
-  // TODO : attachment upload handle kora lagbe
+  // MODIFIED: Added 'projectManager' to the list of allowed roles.
+  auth('projectSupervisor', 'projectManager'),
   NoteController.createNote
 );
 

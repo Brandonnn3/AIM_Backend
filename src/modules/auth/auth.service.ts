@@ -1,4 +1,4 @@
-// auth.service.ts - Complete file with modifications
+// src/modules/auth/auth.service.ts
 
 import moment from 'moment';
 import ApiError from '../../errors/ApiError';
@@ -23,83 +23,67 @@ const validateUserStatus = (user: TUser) => {
     );
   }
 };
+
 const createUser = async (userData: TUser) => {
-  // as we know userData er companyId need to provide here .
-
-  if (userData.companyId == null) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'Company Id is required');
-  }
-
-  if (userData.role == 'projectSupervisor') {
-    if (userData.superVisorsManagerId == null) {
-      throw new ApiError(
-        StatusCodes.BAD_REQUEST,
-        'SuperVisor Manager Id is required'
-      );
-    }
-  } else {
-    userData.superVisorsManagerId = null;
-  }
   const existingUser = await User.findOne({ email: userData.email });
   if (existingUser) {
     if (existingUser.isEmailVerified) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Email already taken');
     } else {
       await User.findOneAndUpdate({ email: userData.email }, userData);
-
-      //create verification email token
       const verificationToken = await TokenService.createVerifyEmailToken(
         existingUser
       );
-      //create verification email otp
       const { otp } = await OtpService.createVerificationEmailOtp(
         existingUser.email
       );
       console.log('OTP ::: FIXME 🟢🟢', otp);
-      return { otp, verificationToken }; // FIXME  : otp remove korte hobe ekhan theke ..
+      return { otp, verificationToken };
     }
   }
 
-  console.log('password before hash 🟢🟢', userData.password);
+  // MODIFIED: The manual password hashing line has been removed.
+  // The pre-save hook in user.model.ts will now handle this automatically.
 
-  // hash password
-  userData.password = await bcrypt.hash(userData.password, 12);
-
-  console.log('password after hash 🟢🟢', userData.password);
+  if (userData.role !== 'projectSupervisor') {
+    userData.superVisorsManagerId = null;
+  }
 
   const user = await User.create(userData);
 
-  //  company create for project manager
+  if (userData.companyId) {
+    const company = await Company.findById(userData.companyId);
+    if (!company) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Company Name is not valid');
+    }
+    
+    if (userData.role === 'projectSupervisor' && !userData.superVisorsManagerId) {
+        throw new ApiError(
+          StatusCodes.BAD_REQUEST,
+          'SuperVisor Manager Id is required'
+        );
+    }
 
-  // check  userData.companyId valid  or not
-  const company = await Company.findById(userData.companyId);
-  if (!company) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'Company Name is not valid');
+    const userCompany = await UserCompany.create({
+      userId: user._id,
+      companyId: userData.companyId,
+      role: userData.role,
+    });
+
+    if (!userCompany) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        'User Company could not be created'
+      );
+    }
   }
 
-  // add to userCompany collection
-  const userCompany = await UserCompany.create({
-    userId: user._id,
-    companyId: userData.companyId,
-    role: userData.role,
-  });
-
-  if (!userCompany) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'User Company is not created');
-  }
-
-  // cantunderstand :
-  //create verification email token
   const verificationToken = await TokenService.createVerifyEmailToken(user);
-  //create verification email otp
   const { otp } = await OtpService.createVerificationEmailOtp(user.email);
   console.log('OTP ::: FIXME 🟢🟢', otp);
-  return { otp, user, verificationToken }; // FIXME  : otp remove korte hobe ekhan theke ..
+  return { otp, user, verificationToken };
 };
 
-// ========================================================================
-// THIS IS THE ONLY FUNCTION THAT HAS BEEN MODIFIED
-// ========================================================================
 const login = async (email: string, reqpassword: string, fcmToken: string) => {
   const user = await User.findOne({ email }).select('+password');
   if (!user) {
@@ -144,29 +128,23 @@ const login = async (email: string, reqpassword: string, fcmToken: string) => {
     await user.save();
   }
 
-  // NEW: We add this line to check if the user belongs to a company.
   const userCompany = await UserCompany.findOne({ userId: user._id });
 
   const tokens = await TokenService.accessAndRefreshToken(user);
 
   if (fcmToken) {
     user.fcmToken = fcmToken;
-    await user.save(); // INFO :  here fcmToken is saved
+    await user.save();
   }
 
   const { password, ...userWithoutPassword } = user.toObject();
 
-  // MODIFIED: We add the isSetupComplete flag to the final return object.
   return {
     userWithoutPassword,
     tokens,
-    isSetupComplete: userCompany ? true : false, // This will be true if a record was found, false otherwise.
+    isSetupComplete: userCompany ? true : false,
   };
 };
-// ========================================================================
-// END OF MODIFIED FUNCTION
-// ========================================================================
-
 
 const verifyEmail = async (email: string, token: string, otp: string) => {
   const user = await User.findOne({ email });
@@ -180,7 +158,6 @@ const verifyEmail = async (email: string, token: string, otp: string) => {
     user?.isResetPassword ? TokenType.RESET_PASSWORD : TokenType.VERIFY
   );
 
-  //verify otp
   await OtpService.verifyOTP(
     user.email,
     otp,
@@ -199,12 +176,11 @@ const forgotPassword = async (email: string) => {
   if (!user) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'User not found');
   }
-  //create reset password token
   const resetPasswordToken = await TokenService.createResetPasswordToken(user);
   const otp = await OtpService.createResetPasswordOtp(user.email);
   user.isResetPassword = true;
   await user.save();
-  return { resetPasswordToken, otp }; // FIXME :  otp remove kore dite hobe must ..
+  return { resetPasswordToken, otp };
 };
 
 const resendOtp = async (email: string) => {
@@ -218,11 +194,11 @@ const resendOtp = async (email: string) => {
       user
     );
     const otp = await OtpService.createResetPasswordOtp(user.email);
-    return { resetPasswordToken, otp }; // FIXME  :  otp remove korte hobe ..
+    return { resetPasswordToken, otp };
   }
   const verificationToken = await TokenService.createVerifyEmailToken(user);
   const otp = await OtpService.createVerificationEmailOtp(user.email);
-  return { verificationToken, otp }; // FIXME  :  otp remove korte hobe ..
+  return { verificationToken, otp };
 };
 
 const resetPassword = async (
