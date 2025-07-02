@@ -3,11 +3,10 @@ import catchAsync from '../../shared/catchAsync';
 import sendResponse from '../../shared/sendResponse';
 import { AuthService } from './auth.service';
 import ApiError from '../../errors/ApiError';
+import { TUser } from '../user/user.interface';
 
-//[🚧][🧑‍💻✅][🧪] // 🆗 
 const register = catchAsync(async (req, res) => {
   const result = await AuthService.createUser(req.body);
-
 
   sendResponse(res, {
     code: StatusCodes.CREATED,
@@ -21,10 +20,9 @@ const login = catchAsync(async (req, res) => {
   const { email, password, fcmToken } = req.body;
   const result = await AuthService.login(email, password, fcmToken);
 
-  //set refresh token in cookie
   res.cookie('refreshToken', result.tokens.refreshToken, {
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // set maxAge to a number
+    maxAge: 24 * 60 * 60 * 1000,
     sameSite: 'lax',
   });
 
@@ -36,9 +34,7 @@ const login = catchAsync(async (req, res) => {
   });
 });
 
-//[🚧][🧑‍💻✅][🧪]  // 🆗
 const verifyEmail = catchAsync(async (req, res) => {
-  console.log(req.body);
   const { email, token, otp } = req.body;
   const result = await AuthService.verifyEmail(email, token, otp);
   sendResponse(res, {
@@ -62,6 +58,7 @@ const resendOtp = catchAsync(async (req, res) => {
     success: true,
   });
 });
+
 const forgotPassword = catchAsync(async (req, res) => {
   const result = await AuthService.forgotPassword(req.body.email);
   sendResponse(res, {
@@ -73,21 +70,27 @@ const forgotPassword = catchAsync(async (req, res) => {
 });
 
 const changePassword = catchAsync(async (req, res) => {
-  const { userId } = req.user;
-  if(!userId){
+  // MODIFIED: Safely access the _id from the full user object.
+  const user = req.user as TUser;
+  const userId = user?._id;
+
+  if (!userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are not authorized');
   }
   const { currentPassword, newPassword } = req.body;
-  if(!currentPassword || !newPassword){
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'currentPassword and newPassword  is required');
+  if (!currentPassword || !newPassword) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      'currentPassword and newPassword  is required'
+    );
   }
   const result = await AuthService.changePassword(
-    userId,
+    // FIXED: Cast userId to 'any' before calling toString() to resolve the 'never' type error.
+    (userId as any).toString(),
     currentPassword,
-    newPassword,
+    newPassword
   );
 
-  
   sendResponse(res, {
     code: StatusCodes.OK,
     message: 'Password changed successfully',
@@ -95,10 +98,11 @@ const changePassword = catchAsync(async (req, res) => {
     success: true,
   });
 });
+
 const resetPassword = catchAsync(async (req, res) => {
   const { email, password, otp } = req.body;
   const result = await AuthService.resetPassword(email, password, otp);
-  if(!result){
+  if (!result) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are not authorized');
   }
   sendResponse(res, {
@@ -126,10 +130,9 @@ const refreshToken = catchAsync(async (req, res) => {
     code: StatusCodes.OK,
     message: 'User logged in successfully',
     data:
-    //  null 
-    {
-      tokens,
-    },
+      {
+        tokens,
+      },
   });
 });
 

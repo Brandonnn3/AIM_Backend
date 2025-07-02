@@ -80,11 +80,37 @@ const sendResetPasswordEmail = async (to: string, otp: string) => {
   await sendEmail({ to, subject, html });
 };
 
+// NEW: This function creates and sends an invitation email to a new supervisor.
+const sendSupervisorInviteEmail = async (
+  to: string,
+  managerName: string,
+  tempPassword: string
+) => {
+  const subject = `You've been invited to join Aim Construction`;
+  const html = `
+    <div style="width: 45%; margin: 0 auto; font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #ccc; border-radius: 20px;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <img src="${process.env.Ip_To_Acess_Upload_Folder}uploads/AIM_Transparent_PNG.png" alt="Logo" style="width: 200px; margin-bottom: 20px;" />
+        <h1 style="color: #1B9AAA;">You're Invited!</h1>
+        <p style="font-size: 16px;">Your manager, <strong>${managerName}</strong>, has invited you to join their team on the Aim Construction platform.</p>
+        <p style="font-size: 16px;">An account has been created for you. Please use the credentials below to log in for the first time:</p>
+      </div>
+      <div style="text-align: center;">
+        <p style="font-size: 16px; font-weight: bold;">Email: <span style="color: #1B9AAA;">${to}</span></p>
+        <p style="font-size: 16px; font-weight: bold;">Temporary Password: <span style="color: #1B9AAA;">${tempPassword}</span></p>
+      </div>
+      <p style="font-size: 14px; text-align: center; margin-top: 20px;">For security reasons, please log in and change your password immediately.</p>
+    </div>
+  `;
+  await sendEmail({ to, subject, html });
+};
+
+
 const sendAdminOrSuperAdminCreationEmail = async (
   email: string,
   role: string,
   password: string,
-  message?: string // Optional custom message
+  message?: string
 ) => {
   const subject = `Congratulations! You are now an ${role}`;
   const html = `
@@ -113,7 +139,7 @@ const sendAdminOrSuperAdminCreationEmail = async (
 
   await sendEmail({ to: email, subject, html });
 };
-// Function to send a Welcome Email
+
 const sendWelcomeEmail = async (to: string, password: string) => {
   const subject = 'Welcome to the Platform!';
   const html = `
@@ -138,7 +164,7 @@ const sendSupportMessageEmail = async (
   subject: string,
   message: string
 ) => {
-  const adminEmail = config.smtp.emailFrom; // Admin email from config
+  const adminEmail = config.smtp.emailFrom;
   const html = `
     <div style="width: 45%; margin: 0 auto; font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #ccc; border-radius: 20px;">
       <div style="text-align: center; margin-bottom: 20px;">
@@ -165,4 +191,5 @@ export {
   sendAdminOrSuperAdminCreationEmail,
   sendSupportMessageEmail,
   sendWelcomeEmail,
+  sendSupervisorInviteEmail, // NEW: Export the new function
 };

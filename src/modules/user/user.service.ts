@@ -3,11 +3,13 @@ import ApiError from '../../errors/ApiError';
 import { PaginateOptions, PaginateResult } from '../../types/paginate';
 import { TUser } from './user.interface';
 import { User } from './user.model';
-import { sendAdminOrSuperAdminCreationEmail } from '../../helpers/emailService';
-
+import { sendAdminOrSuperAdminCreationEmail, sendSupervisorInviteEmail } from '../../helpers/emailService';
 import { Project } from '../project/project.model';
 import { CreatorRole } from '../contract/contract.constant';
 import { GenericService } from '../Generic Service/generic.services';
+import { UserCompany } from '../userCompany/userCompany.model';
+import { CompanyService } from '../company/company.service';
+import { logger } from '../../shared/logger';
 
 interface IAdminOrSuperAdminPayload {
   email: string;
@@ -21,8 +23,73 @@ export class UserCustomService extends GenericService<typeof User> {
     constructor() {
         super(User);
     }
-    
 }
+
+// NEW: This function finds all supervisors linked to a specific manager.
+const getSupervisorsByManager = async (managerId: string): Promise<TUser[]> => {
+  const supervisors = await User.find({
+    role: 'projectSupervisor',
+    superVisorsManagerId: managerId,
+    isDeleted: false, // Ensure we only get active supervisors
+  }).select('-password'); // Exclude password from the result
+
+  return supervisors;
+};
+
+
+const inviteSupervisors = async (
+  emails: string[],
+  invitingManager: TUser
+): Promise<{ successfulInvites: string[]; failedInvites: { email: string; reason: string }[] }> => {
+  const companyService = new CompanyService();
+  const successfulInvites: string[] = [];
+  const failedInvites: { email: string; reason: string }[] = [];
+
+  const managerCompanyLink = await UserCompany.findOne({ userId: invitingManager._id });
+  if (!managerCompanyLink) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Inviting manager is not associated with a company.');
+  }
+  const companyId = managerCompanyLink.companyId;
+
+  for (const email of emails) {
+    try {
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        failedInvites.push({ email, reason: 'Email already exists in the system.' });
+        continue;
+      }
+
+      const tempPassword = Math.random().toString(36).slice(-8);
+      const newSupervisor = new User({
+        email,
+        password: tempPassword,
+        role: 'projectSupervisor',
+        isEmailVerified: false,
+        superVisorsManagerId: invitingManager._id,
+        fname: 'New',
+        lname: 'Supervisor',
+        address: '',
+        companyName: invitingManager.companyName,
+        phoneNumber: '',
+      });
+
+      await newSupervisor.save();
+
+      await companyService.joinCompany(newSupervisor, companyId!.toString());
+      
+      logger.info(`Attempting to send supervisor invite email to: ${email}`);
+      await sendSupervisorInviteEmail(email, invitingManager.fname, tempPassword);
+
+      successfulInvites.push(email);
+    } catch (error) {
+        logger.error(`Failed to process invite for ${email}:`, error);
+        failedInvites.push({ email, reason: 'An internal error occurred.' });
+    }
+  }
+
+  return { successfulInvites, failedInvites };
+};
+
 
 const createAdminOrSuperAdmin = async (
   payload: IAdminOrSuperAdminPayload
@@ -32,16 +99,14 @@ const createAdminOrSuperAdmin = async (
     throw new ApiError(StatusCodes.BAD_REQUEST, 'This email already exists');
   }
   const result = new User({
-    first_name: 'New',
-    last_name: ` ${payload.role === 'admin' ? 'Admin' : 'Super Admin'}`,
+    fname: 'New',
+    lname: ` ${payload.role === 'admin' ? 'Admin' : 'Super Admin'}`,
     email: payload.email,
     password: payload.password,
     role: payload.role,
   });
 
   await result.save();
-  //send email for the new admin or super admin via email service
-  // todo
   sendAdminOrSuperAdminCreationEmail(
     payload.email,
     payload.role,
@@ -57,7 +122,7 @@ const getAllUsers = async (
 ): Promise<PaginateResult<TUser>> => {
   const query: Record<string, any> = {};
   if (filters.userName) {
-    query['first_name'] = { $regex: filters.userName, $options: 'i' };
+    query['fname'] = { $regex: filters.userName, $options: 'i' };
   }
   if (filters.email) {
     query['email'] = { $regex: filters.email, $options: 'i' };
@@ -78,7 +143,7 @@ const getFilteredUsersWithConnectionStatus = async (
   };
 
   if (filters.userName) {
-    query['first_name'] = { $regex: filters.userName, $options: 'i' };
+    query['fname'] = { $regex: filters.userName, $options: 'i' };
   }
   if (filters.email) {
     query['email'] = { $regex: filters.email, $options: 'i' };
@@ -93,7 +158,6 @@ const getFilteredUsersWithConnectionStatus = async (
       match: { senderId: userId }
     },
   ]
-  // Fetch users with pagination
   const usersResult = await User.paginate(query, options);
 
   return usersResult;
@@ -167,20 +231,14 @@ const deleteMyProfile = async (userId: string): Promise<TUser | null> => {
   return result;
 };
 
-///////////////////////////////////////////////////////
-
 const getAllProjectsByUserId = async (userId: string) => {
- 
   const user = await User.findById(userId);
- 
   if (!user) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'User not found');
   }
   let result ;
   if(user.role == CreatorRole.projectManager){
-    
     result = await Project.find({ projectManagerId: user._id });
-    
     console.log("result 🚀1", result);
   }else{
     result = await Project.find({ projectSuperVisorId: user._id });
@@ -201,6 +259,7 @@ export const UserService = {
   getMyProfile,
   updateProfileImage,
   deleteMyProfile,
-  //////////////////////////
-  getAllProjectsByUserId
+  getAllProjectsByUserId,
+  inviteSupervisors,
+  getSupervisorsByManager, // NEW: Export the new function
 };

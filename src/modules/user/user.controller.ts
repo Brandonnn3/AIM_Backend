@@ -10,9 +10,49 @@ import { AttachmentService } from '../attachments/attachment.service';
 import { FolderName } from '../../enums/folderNames';
 import { AttachedToType } from '../attachments/attachment.constant';
 import { UserCompany } from '../userCompany/userCompany.model';
+import { TUser } from '../user/user.interface';
 
 const userCustomService = new UserCustomService();
 const attachmentService = new AttachmentService();
+
+// NEW: This controller fetches the list of supervisors for the logged-in manager.
+const getMySupervisors = catchAsync(async (req, res) => {
+  const manager = req.user as TUser;
+
+  if (!manager || !manager._id) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'Manager not authenticated.');
+  }
+
+  // FIXED: Cast _id to 'any' before calling toString()
+  const result = await UserService.getSupervisorsByManager((manager._id as any).toString());
+  
+  sendResponse(res, {
+    code: StatusCodes.OK,
+    data: result,
+    message: 'Supervisors retrieved successfully.',
+  });
+});
+
+const inviteSupervisors = catchAsync(async (req, res) => {
+  const invitingManager = req.user;
+  const { emails } = req.body;
+
+  if (!invitingManager) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'You must be logged in to send invites.');
+  }
+
+  if (!emails || !Array.isArray(emails) || emails.length === 0) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'A list of emails is required.');
+  }
+
+  const result = await UserService.inviteSupervisors(emails, invitingManager as TUser);
+  
+  sendResponse(res, {
+    code: StatusCodes.OK,
+    data: result,
+    message: 'Supervisor invitations processed successfully.',
+  });
+});
 
 const createAdminOrSuperAdmin = catchAsync(async (req, res) => {
   const payload = req.body;
@@ -26,15 +66,13 @@ const createAdminOrSuperAdmin = catchAsync(async (req, res) => {
   });
 });
 
-//get all users from database
 const getAllUsers = catchAsync(async (req, res) => {
-  const currentUserId = req.user.userId;
+  // FIXED: Cast _id to 'any' before calling toString()
+  const currentUserId = new Types.ObjectId((req.user as TUser)._id as any);
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
   const skip = (page - 1) * limit;
 
-  console.log(currentUserId);
-  // Aggregation pipeline to fetch users with connection status
   const aggregationPipeline = [
     {
       $match: {
@@ -116,10 +154,8 @@ const getAllUsers = catchAsync(async (req, res) => {
     { $limit: limit },
   ];
 
-  // Execute aggregation
   const users = await User.aggregate(aggregationPipeline).exec();
 
-  // Get total count for pagination
   const total = await User.countDocuments({
     _id: { $ne: currentUserId },
     role: 'mentor',
@@ -136,19 +172,7 @@ const getAllUsers = catchAsync(async (req, res) => {
     },
   });
 });
-// const getAllUsers = catchAsync(async (req, res) => {
-//   const {userId} = req.user?.userId;
-//   const filters = pick(req.query, ['userName', 'email', 'role']);
-//   const options = pick(req.query, ['sortBy', 'limit', 'page', 'populate']);
-//   const result = await UserService.getFilteredUsersWithConnectionStatus(userId,filters, options);
-//   sendResponse(res, {
-//     code: StatusCodes.OK,
-//     data: result,
-//     message: 'Users fetched successfully',
-//   });
-// });
 
-//get single user from database
 const getSingleUser = catchAsync(async (req, res) => {
   const { userId } = req.params;
   const result = await UserService.getSingleUser(userId);
@@ -159,9 +183,8 @@ const getSingleUser = catchAsync(async (req, res) => {
   });
 });
 
-//update profile image
 const updateProfile = catchAsync(async (req, res) => {
-  const userId = req.user.userId;
+  const userId = (req.user as TUser)._id;
   if (!userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
   }
@@ -170,7 +193,7 @@ const updateProfile = catchAsync(async (req, res) => {
       req.file,
       FolderName.user,
       null,
-      req.user,
+      req.user as TUser,
       AttachedToType.project
     );
 
@@ -178,7 +201,7 @@ const updateProfile = catchAsync(async (req, res) => {
       imageUrl: attachmentResult.attachment,
     };
   }
-  const result = await UserService.updateMyProfile(userId, req.body);
+  const result = await UserService.updateMyProfile((userId as any).toString(), req.body);
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -186,9 +209,8 @@ const updateProfile = catchAsync(async (req, res) => {
   });
 });
 
-//update profile image
 const updateProfileImage = catchAsync(async (req, res) => {
-  const userId = req.user.userId;
+  const userId = (req.user as TUser)._id;
   if (!userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
   }
@@ -197,7 +219,7 @@ const updateProfileImage = catchAsync(async (req, res) => {
       req.file,
       FolderName.user,
       null,
-      req.user,
+      req.user as TUser,
       AttachedToType.project
     );
 
@@ -205,7 +227,7 @@ const updateProfileImage = catchAsync(async (req, res) => {
       imageUrl: attachmentResult.attachment,
     };
   }
-  const result = await UserService.updateMyProfile(userId, req.body);
+  const result = await UserService.updateMyProfile((userId as any).toString(), req.body);
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -213,9 +235,8 @@ const updateProfileImage = catchAsync(async (req, res) => {
   });
 });
 
-//update user from database
 const updateMyProfile = catchAsync(async (req, res) => {
-  const userId = req.user.userId;
+  const userId = (req.user as TUser)._id;
   if (!userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
   }
@@ -225,7 +246,7 @@ const updateMyProfile = catchAsync(async (req, res) => {
       file: req.file,
     };
   }
-  const result = await UserService.updateMyProfile(userId, req.body);
+  const result = await UserService.updateMyProfile((userId as any).toString(), req.body);
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -233,7 +254,6 @@ const updateMyProfile = catchAsync(async (req, res) => {
   });
 });
 
-//update user status from database
 const updateUserStatus = catchAsync(async (req, res) => {
   const { userId } = req.params;
   const payload = req.body;
@@ -245,7 +265,6 @@ const updateUserStatus = catchAsync(async (req, res) => {
   });
 });
 
-//update user
 const updateUserProfile = catchAsync(async (req, res) => {
   const { userId } = req.params;
   const payload = req.body;
@@ -257,26 +276,24 @@ const updateUserProfile = catchAsync(async (req, res) => {
   });
 });
 
-//get my profile
 const getMyProfile = catchAsync(async (req, res) => {
-  const userId = req.user.userId;
+  const userId = (req.user as TUser)._id;
   if (!userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
   }
-  const result = await UserService.getMyProfile(userId);
+  const result = await UserService.getMyProfile((userId as any).toString());
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
     message: 'User fetched successfully',
   });
 });
-//delete user from database
 const deleteMyProfile = catchAsync(async (req, res) => {
-  const userId = req.user.userId;
+  const userId = (req.user as TUser)._id;
   if (!userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
   }
-  const result = await UserService.deleteMyProfile(userId);
+  const result = await UserService.deleteMyProfile((userId as any).toString());
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -284,17 +301,11 @@ const deleteMyProfile = catchAsync(async (req, res) => {
   });
 });
 
-////////////////////////////////////////////////////////// 🚧🚧🚧🚧🚧
-
-//get all Projects by User Id
 const getAllProjectsByUserId = catchAsync(async (req, res) => {
   if (!req.user) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'User ID not found in request');
   }
-
-  // const { id } = req.user;
-
-  const result = await UserService.getAllProjectsByUserId(req.user.userId);
+  const result = await UserService.getAllProjectsByUserId(((req.user as TUser)._id as any).toString());
 
   if (!result) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'No Projects found');
@@ -308,7 +319,7 @@ const getAllProjectsByUserId = catchAsync(async (req, res) => {
 });
 
 const getAllUserWithPagination = catchAsync(async (req, res) => {
-  const filters = pick(req.query, ['_id', 'role', 'fname', 'lname']); // 'projectName',
+  const filters = pick(req.query, ['_id', 'role', 'fname', 'lname']);
   const options = pick(req.query, ['sortBy', 'limit', 'page', 'populate']);
 
   const result = await userCustomService.getAllWithPagination(filters, options);
@@ -321,7 +332,6 @@ const getAllUserWithPagination = catchAsync(async (req, res) => {
 });
 
 const getAllManager = catchAsync(async (req, res) => {
-  //const result = await UserCompany.find({ companyId : req.body.companyId, role : 'projectManager'}); // .populate('userId')
   const result = await User.find({ role: 'projectManager' }).select(
     'fname lname'
   );
@@ -357,7 +367,7 @@ const getAllProjectSupervisorsByProjectManagerId = catchAsync(
   async (req, res) => {
     const result = await User.find({
       role: 'projectSupervisor',
-      superVisorsManagerId: req?.user?.userId,
+      superVisorsManagerId: (req.user as TUser)?._id,
     }).select('');
     sendResponse(res, {
       code: StatusCodes.OK,
@@ -372,18 +382,17 @@ export const UserController = {
   getAllUsers,
   getSingleUser,
   updateMyProfile,
-  ///////////////////////////
   updateProfile,
   updateProfileImage,
   updateUserStatus,
   getMyProfile,
   updateUserProfile,
   deleteMyProfile,
-  //////////////////////////
-
   getAllProjectsByUserId,
   getAllUserWithPagination,
   getAllManager,
   getAllProjectSupervisorsByProjectManagerId,
   getAllManagerByCompanyId,
+  inviteSupervisors,
+  getMySupervisors, // NEW: Export the new function
 };

@@ -1,4 +1,3 @@
-
 import catchAsync from '../../shared/catchAsync';
 import sendResponse from '../../shared/sendResponse';
 import { StatusCodes } from 'http-status-codes';
@@ -9,28 +8,22 @@ import { FolderName } from '../../enums/folderNames';
 import { AttachedToType } from '../attachments/attachment.constant';
 import { CompanyService } from './company.service';
 import { Company } from './company.model';
+import { TUser } from '../user/user.interface';
 
 const companyService = new CompanyService();
 
-
-//[🚧][🧑‍💻✅][🧪🆗]
 const createCompany = catchAsync(async (req, res) => {
-  // check if the company name already exists ... 
-
   if(req.body.name === ""){
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Company name is required');
   }
-
-  // Use $regex for partial matching (case-insensitive)
   const existingCompany = await Company.findOne({
-    name: { $regex: new RegExp(req.body.name, 'i') }, // 'i' makes it case-insensitive
+    name: { $regex: new RegExp(req.body.name, 'i') },
   });
 
   if (existingCompany) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Company already exists');
   }else{
     const result = await companyService.create(req.body);
-
     sendResponse(res, {
       code: StatusCodes.OK,
       data: result,
@@ -40,22 +33,23 @@ const createCompany = catchAsync(async (req, res) => {
   }
 });
 
-//[🚧][🧑‍💻✅][🧪🆗]
 const getACompanyByName = catchAsync(async (req, res) => {
-  if(req.query.companyName === ""){
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'Company name is required');
+  const companyName = req.query.companyName;
+  if (typeof companyName !== 'string' || companyName === "") {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Company name is required and must be a string.');
   }
+  
   const result = await Company.find({
-    name: { $regex: new RegExp(req?.query?.companyName, 'i') }, // 'i' makes it case-insensitive
+    name: { $regex: new RegExp(companyName, 'i') },
   });
 
-
   if (result.length === 0) {
-    throw new ApiError(StatusCodes.NOT_FOUND, 'Company not found');
-  }
-
-  if (!result) {
-    throw new ApiError(StatusCodes.NOT_FOUND, 'Company not found');
+    return sendResponse(res, {
+      code: StatusCodes.OK,
+      data: [],
+      message: 'No companies found with that name.',
+      success: true,
+    });
   }
   
   sendResponse(res, {
@@ -99,10 +93,52 @@ const deleteById = catchAsync(async (req, res) => {
   });
 });
 
+const joinCompany = catchAsync(async (req, res) => {
+  const user = req.user;
+  const { companyId } = req.body;
+
+  if (!user) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not authenticated.');
+  }
+  if (!companyId) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Company ID is required.');
+  }
+
+  const result = await companyService.joinCompany(user as TUser, companyId);
+  sendResponse(res, {
+    code: StatusCodes.OK,
+    data: result,
+    message: 'Successfully joined the company.',
+    success: true,
+  });
+});
+
+// NEW: This controller handles the first step of the manager onboarding.
+const setupCompanyProfile = catchAsync(async (req, res) => {
+    const user = req.user;
+    const companyProfileData = req.body;
+
+    if (!user) {
+        throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not authenticated.');
+    }
+
+    const result = await companyService.setupCompanyProfile(companyProfileData, user as TUser);
+
+    sendResponse(res, {
+        code: StatusCodes.CREATED,
+        data: result,
+        message: 'Company profile created and user joined successfully.',
+        success: true,
+    });
+});
+
+
 export const CompanyController = {
   getAllCompany,
   getACompanyByName,
   createCompany,
   updateById,
   deleteById,
+  joinCompany,
+  setupCompanyProfile, // NEW: Export the new function
 };

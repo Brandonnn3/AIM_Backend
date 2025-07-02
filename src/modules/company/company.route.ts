@@ -1,13 +1,19 @@
 import express from 'express';
 import auth from '../../middlewares/auth';
-import validateRequest from '../../shared/validateRequest';
 import { CompanyController } from './company.controller';
 
-const multer = require('multer');
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
-
 const router = express.Router();
+
+// NEW: This is the endpoint for the first step of the manager onboarding wizard.
+router.route('/setup-profile').post(
+    auth('projectManager'), 
+    CompanyController.setupCompanyProfile
+);
+
+// TODO: We will add a new route here for sending supervisor invites later.
+
+
+// --- Other existing routes ---
 
 router.route('/update/:contractId').put(
   auth('projectManager'),
@@ -16,13 +22,6 @@ router.route('/update/:contractId').put(
 
 router.route('/').get(auth('projectManager'), CompanyController.getAllCompany);
 
-// MODIFIED: Added the auth() middleware to protect this route.
-router.route('/create').post(
-    auth('projectManager'), 
-    CompanyController.createCompany
-);
-
-// MODIFIED: Added the auth() middleware to protect this route.
 router.route('/getByName').post(
     auth('projectManager'), 
     CompanyController.getACompanyByName

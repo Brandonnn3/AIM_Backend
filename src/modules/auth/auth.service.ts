@@ -1,6 +1,7 @@
 // src/modules/auth/auth.service.ts
 
 import moment from 'moment';
+// CORRECTED: The relative path is now correct.
 import ApiError from '../../errors/ApiError';
 import { StatusCodes } from 'http-status-codes';
 import { OtpService } from '../otp/otp.service';
@@ -41,9 +42,6 @@ const createUser = async (userData: TUser) => {
       return { otp, verificationToken };
     }
   }
-
-  // MODIFIED: The manual password hashing line has been removed.
-  // The pre-save hook in user.model.ts will now handle this automatically.
 
   if (userData.role !== 'projectSupervisor') {
     userData.superVisorsManagerId = null;
@@ -245,6 +243,7 @@ const changePassword = async (
   const { password, ...userWithoutPassword } = user.toObject();
   return userWithoutPassword;
 };
+
 const logout = async (refreshToken: string) => {};
 
 const refreshAuth = async (refreshToken: string) => {
@@ -254,7 +253,7 @@ const refreshAuth = async (refreshToken: string) => {
     TokenType.REFRESH
   );
 
-  console.log('verify User :: 🧑‍💻🟢', verifyUser);
+  console.log('verify User :: 🧑‍�🟢', verifyUser);
   let tokens;
   if (verifyUser) {
     tokens = await TokenService.accessAndRefreshTokenForRefreshToken(
