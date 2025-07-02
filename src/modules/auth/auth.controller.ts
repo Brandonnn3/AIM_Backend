@@ -70,7 +70,6 @@ const forgotPassword = catchAsync(async (req, res) => {
 });
 
 const changePassword = catchAsync(async (req, res) => {
-  // MODIFIED: Safely access the _id from the full user object.
   const user = req.user as TUser;
   const userId = user?._id;
 
@@ -85,7 +84,6 @@ const changePassword = catchAsync(async (req, res) => {
     );
   }
   const result = await AuthService.changePassword(
-    // FIXED: Cast userId to 'any' before calling toString() to resolve the 'never' type error.
     (userId as any).toString(),
     currentPassword,
     newPassword
@@ -111,6 +109,29 @@ const resetPassword = catchAsync(async (req, res) => {
     data: {
       result,
     },
+    success: true,
+  });
+});
+
+const setInitialPassword = catchAsync(async (req, res) => {
+  const user = req.user as TUser;
+  const userId = user?._id;
+
+  if (!userId) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are not authorized');
+  }
+
+  const { newPassword } = req.body;
+  if (!newPassword) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'A new password is required.');
+  }
+
+  const result = await AuthService.setInitialPassword((userId as any).toString(), newPassword);
+
+  sendResponse(res, {
+    code: StatusCodes.OK,
+    message: 'Password has been set successfully. Please log in again.',
+    data: result,
     success: true,
   });
 });
@@ -146,4 +167,5 @@ export const AuthController = {
   refreshToken,
   forgotPassword,
   resetPassword,
+  setInitialPassword,
 };

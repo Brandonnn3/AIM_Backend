@@ -7,35 +7,37 @@ import auth from '../../middlewares/auth';
 
 const router = Router();
 
-//[🚧][🧑‍💻✅][🧪] // 🆗 
 router.post(
   '/register',
   validateRequest(UserValidation.createUserValidationSchema),
   AuthController.register,
 );
 
-// TODO  : Login er shomoy  FCM token store korte hobe .. 
-//[🚧][🧑‍💻✅][🧪] // 🆗 
 router.post(
   '/login',
   validateRequest(AuthValidation.loginValidationSchema),
   AuthController.login,
 );
 
-//[🚧][🧑‍💻✅][🧪] // 🆗 
 router.post(
   '/forgot-password',
   validateRequest(AuthValidation.forgotPasswordValidationSchema),
   AuthController.forgotPassword,
 );
 
-router.post('/resend-otp', AuthController.resendOtp);  // auth/resend-otp  ... email in req.body 
+router.post('/resend-otp', AuthController.resendOtp);
 
-//[🚧][🧑‍💻✅][🧪] // 🆗 
 router.post(
   '/reset-password',
   validateRequest(AuthValidation.resetPasswordValidationSchema),
   AuthController.resetPassword,
+);
+
+router.post(
+  '/set-initial-password',
+  auth('common'),
+  validateRequest(AuthValidation.setInitialPasswordValidationSchema),
+  AuthController.setInitialPassword
 );
 
 router.post(
@@ -45,7 +47,6 @@ router.post(
   AuthController.changePassword,
 );
 
-//[🚧][🧑‍💻✅][🧪] // 🆗 
 router.post(
   '/verify-email',
   validateRequest(AuthValidation.verifyEmailValidationSchema),

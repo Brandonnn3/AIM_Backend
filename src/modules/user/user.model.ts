@@ -88,11 +88,16 @@ const userSchema = new Schema<TUser, UserModal>(
       type: Boolean,
       default: false,
     },
+    isPasswordTemporary: {
+      type: Boolean,
+      default: false,
+    },
+    
     failedLoginAttempts: {
       type: Number,
       default: 0,
     },
-    lockUntil: { type: Date }, // 🔴 not sure
+    lockUntil: { type: Date },
   },
   {
     timestamps: true,
@@ -124,6 +129,7 @@ userSchema.statics.isMatchPassword = async function (
 // Middleware to hash password before saving
 userSchema.pre('save', async function (next) {
   if (this.isModified('password')) {
+    // --- CRITICAL FIX: Corrected the config variable name ---
     this.password = await bcrypt.hash(
       this.password,
       Number(config.bcrypt.saltRounds)
@@ -133,10 +139,10 @@ userSchema.pre('save', async function (next) {
 });
 
 
-// Use transform to rename _id to _projectId
+// Use transform to rename _id to _userId
 userSchema.set('toJSON', {
   transform: function (doc, ret, options) {
-    ret._userId = ret._id; // Rename _id to _projectId
+    ret._userId = ret._id; // Rename _id to _userId
     delete ret._id; // Remove the original _id field
     return ret;
   },

@@ -10,7 +10,7 @@ const upload = multer({ storage: storage });
 
 const router = express.Router();
 
-// NEW: This endpoint allows a manager to get a list of their supervisors.
+// This endpoint allows a manager to get a list of their supervisors.
 router.route('/my-supervisors').get(
   auth('projectManager'),
   UserController.getMySupervisors,
@@ -19,6 +19,22 @@ router.route('/my-supervisors').get(
 router.route('/invite-supervisors').post(
   auth('projectManager'),
   UserController.inviteSupervisors,
+);
+
+// NEW ROUTE: To cancel a pending invitation (deletes the user)
+// The :id parameter will be the supervisor's user ID.
+router.delete(
+    '/invites/:id',
+    auth('projectManager'),
+    UserController.cancelSupervisorInvitation
+);
+
+// NEW ROUTE: To remove an active supervisor from a company
+// The :id parameter will be the supervisor's user ID.
+router.delete(
+    '/company/supervisors/:id',
+    auth('projectManager'),
+    UserController.removeSupervisorFromCompany
 );
 
 // --- Other existing routes ---

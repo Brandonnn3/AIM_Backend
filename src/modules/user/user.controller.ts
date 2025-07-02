@@ -15,7 +15,6 @@ import { TUser } from '../user/user.interface';
 const userCustomService = new UserCustomService();
 const attachmentService = new AttachmentService();
 
-// NEW: This controller fetches the list of supervisors for the logged-in manager.
 const getMySupervisors = catchAsync(async (req, res) => {
   const manager = req.user as TUser;
 
@@ -23,7 +22,6 @@ const getMySupervisors = catchAsync(async (req, res) => {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'Manager not authenticated.');
   }
 
-  // FIXED: Cast _id to 'any' before calling toString()
   const result = await UserService.getSupervisorsByManager((manager._id as any).toString());
   
   sendResponse(res, {
@@ -54,6 +52,33 @@ const inviteSupervisors = catchAsync(async (req, res) => {
   });
 });
 
+// NEW: Controller for canceling a pending invite
+const cancelSupervisorInvitation = catchAsync(async (req, res) => {
+  const supervisorId = req.params.id;
+  const manager = req.user as TUser;
+
+  await UserService.cancelSupervisorInvitation(supervisorId, (manager._id as any).toString());
+
+  sendResponse(res, {
+    code: StatusCodes.OK,
+    message: 'Supervisor invitation canceled successfully.',
+  });
+});
+
+// NEW: Controller for removing an active supervisor
+const removeSupervisorFromCompany = catchAsync(async (req, res) => {
+    const supervisorId = req.params.id;
+    const manager = req.user as TUser;
+
+    await UserService.removeSupervisorFromCompany(supervisorId, (manager._id as any).toString());
+
+    sendResponse(res, {
+        code: StatusCodes.OK,
+        message: 'Supervisor removed from company successfully.',
+    });
+});
+
+
 const createAdminOrSuperAdmin = catchAsync(async (req, res) => {
   const payload = req.body;
   const result = await UserService.createAdminOrSuperAdmin(payload);
@@ -67,7 +92,6 @@ const createAdminOrSuperAdmin = catchAsync(async (req, res) => {
 });
 
 const getAllUsers = catchAsync(async (req, res) => {
-  // FIXED: Cast _id to 'any' before calling toString()
   const currentUserId = new Types.ObjectId((req.user as TUser)._id as any);
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
@@ -394,5 +418,8 @@ export const UserController = {
   getAllProjectSupervisorsByProjectManagerId,
   getAllManagerByCompanyId,
   inviteSupervisors,
-  getMySupervisors, // NEW: Export the new function
+  getMySupervisors,
+  // NEW EXPORTS
+  cancelSupervisorInvitation,
+  removeSupervisorFromCompany,
 };

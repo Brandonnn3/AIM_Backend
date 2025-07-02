@@ -1,7 +1,6 @@
 // src/modules/auth/auth.service.ts
 
 import moment from 'moment';
-// CORRECTED: The relative path is now correct.
 import ApiError from '../../errors/ApiError';
 import { StatusCodes } from 'http-status-codes';
 import { OtpService } from '../otp/otp.service';
@@ -212,12 +211,30 @@ const resetPassword = async (
   const isOtpVerified = await OtpService.checkOTP(otp);
 
   if (!isOtpVerified) {
-    return null;
+    throw new ApiError(StatusCodes.NOT_FOUND, 'OTP not found or expired');
   }
 
   user.password = newPassword;
   user.isResetPassword = false;
   await user.save();
+  const { password, ...userWithoutPassword } = user.toObject();
+  return userWithoutPassword;
+};
+
+const setInitialPassword = async (userId: string, newPassword: string) => {
+  const user = await User.findById(userId).select('+password');
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'User not found');
+  }
+
+  if (!user.isPasswordTemporary) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'This account has already been activated.');
+  }
+
+  user.password = newPassword;
+  user.isPasswordTemporary = false;
+  await user.save();
+
   const { password, ...userWithoutPassword } = user.toObject();
   return userWithoutPassword;
 };
@@ -253,7 +270,7 @@ const refreshAuth = async (refreshToken: string) => {
     TokenType.REFRESH
   );
 
-  console.log('verify User :: 🧑‍�🟢', verifyUser);
+  console.log('verify User :: 🧑‍💻🟢', verifyUser);
   let tokens;
   if (verifyUser) {
     tokens = await TokenService.accessAndRefreshTokenForRefreshToken(
@@ -274,4 +291,5 @@ export const AuthService = {
   logout,
   changePassword,
   refreshAuth,
+  setInitialPassword,
 };

@@ -18,20 +18,18 @@ interface IAdminOrSuperAdminPayload {
   message?: string;
 }
 
-
 export class UserCustomService extends GenericService<typeof User> {
     constructor() {
         super(User);
     }
 }
 
-// NEW: This function finds all supervisors linked to a specific manager.
+// This function finds all supervisors linked to a specific manager.
 const getSupervisorsByManager = async (managerId: string): Promise<TUser[]> => {
   const supervisors = await User.find({
     role: 'projectSupervisor',
     superVisorsManagerId: managerId,
-    isDeleted: false, // Ensure we only get active supervisors
-  }).select('-password'); // Exclude password from the result
+  }).select('-password'); 
 
   return supervisors;
 };
@@ -40,9 +38,9 @@ const getSupervisorsByManager = async (managerId: string): Promise<TUser[]> => {
 const inviteSupervisors = async (
   emails: string[],
   invitingManager: TUser
-): Promise<{ successfulInvites: string[]; failedInvites: { email: string; reason: string }[] }> => {
+): Promise<{ successfulInvites: TUser[]; failedInvites: { email: string; reason: string }[] }> => {
   const companyService = new CompanyService();
-  const successfulInvites: string[] = [];
+  const successfulInvites: TUser[] = [];
   const failedInvites: { email: string; reason: string }[] = [];
 
   const managerCompanyLink = await UserCompany.findOne({ userId: invitingManager._id });
@@ -64,7 +62,8 @@ const inviteSupervisors = async (
         email,
         password: tempPassword,
         role: 'projectSupervisor',
-        isEmailVerified: false,
+        isEmailVerified: true,
+        isPasswordTemporary: true,
         superVisorsManagerId: invitingManager._id,
         fname: 'New',
         lname: 'Supervisor',
@@ -73,14 +72,15 @@ const inviteSupervisors = async (
         phoneNumber: '',
       });
 
-      await newSupervisor.save();
+      // --- FIX: Use the 'savedSupervisor' variable consistently after saving ---
+      const savedSupervisor = await newSupervisor.save();
 
-      await companyService.joinCompany(newSupervisor, companyId!.toString());
+      await companyService.joinCompany(savedSupervisor, companyId!.toString());
       
-      logger.info(`Attempting to send supervisor invite email to: ${email}`);
       await sendSupervisorInviteEmail(email, invitingManager.fname, tempPassword);
 
-      successfulInvites.push(email);
+      successfulInvites.push(savedSupervisor);
+
     } catch (error) {
         logger.error(`Failed to process invite for ${email}:`, error);
         failedInvites.push({ email, reason: 'An internal error occurred.' });
@@ -88,6 +88,44 @@ const inviteSupervisors = async (
   }
 
   return { successfulInvites, failedInvites };
+};
+
+// NEW: Function to cancel a pending invitation by deleting the user
+const cancelSupervisorInvitation = async (supervisorId: string, managerId: string): Promise<void> => {
+  const supervisor = await User.findById(supervisorId);
+
+  if (!supervisor) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'Supervisor not found.');
+  }
+
+  if (supervisor.superVisorsManagerId?.toString() !== managerId) {
+    throw new ApiError(StatusCodes.FORBIDDEN, 'You are not authorized to perform this action.');
+  }
+  if (!supervisor.isPasswordTemporary) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'This supervisor is already an active user and cannot be canceled.');
+  }
+
+  await UserCompany.deleteOne({ userId: supervisorId });
+  await User.findByIdAndDelete(supervisorId);
+};
+
+// NEW: Function to remove an active supervisor from a company
+const removeSupervisorFromCompany = async (supervisorId: string, managerId: string): Promise<void> => {
+    const supervisor = await User.findById(supervisorId);
+
+    if (!supervisor) {
+        throw new ApiError(StatusCodes.NOT_FOUND, 'Supervisor not found.');
+    }
+
+    if (supervisor.superVisorsManagerId?.toString() !== managerId) {
+        throw new ApiError(StatusCodes.FORBIDDEN, 'This supervisor does not belong to your company.');
+    }
+
+    await User.findByIdAndUpdate(supervisorId, {
+        $unset: { superVisorsManagerId: 1 }
+    });
+
+    await UserCompany.deleteOne({ userId: supervisorId });
 };
 
 
@@ -239,12 +277,10 @@ const getAllProjectsByUserId = async (userId: string) => {
   let result ;
   if(user.role == CreatorRole.projectManager){
     result = await Project.find({ projectManagerId: user._id });
-    console.log("result 🚀1", result);
   }else{
     result = await Project.find({ projectSuperVisorId: user._id });
-    console.log("result 🚀2", result);
   }
-  return user;
+  return result;
 };
 
 
@@ -261,5 +297,7 @@ export const UserService = {
   deleteMyProfile,
   getAllProjectsByUserId,
   inviteSupervisors,
-  getSupervisorsByManager, // NEW: Export the new function
+  getSupervisorsByManager,
+  cancelSupervisorInvitation,
+  removeSupervisorFromCompany,
 };

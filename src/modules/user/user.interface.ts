@@ -34,6 +34,7 @@ export type TUser = {
   isDeleted: boolean;
   lastPasswordChange: Date;
   isResetPassword: boolean;
+  isPasswordTemporary?: boolean;
   failedLoginAttempts: number;
   lockUntil: Date | undefined;
   createdAt: Date;
