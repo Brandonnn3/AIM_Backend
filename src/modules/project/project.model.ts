@@ -1,10 +1,15 @@
-import { model, Schema } from 'mongoose';
+import { model, Schema, Document } from 'mongoose';
 import paginate from '../../common/plugins/paginate';
 import { IProject, IProjectModel } from './project.interface';
 import { Status } from './project.constant';
 
 const projectSchema = new Schema<IProject>(
   {
+    pid: {
+      type: String,
+      unique: true,
+      index: true,
+    },
     projectName: {
       type: String,
       required: [true, 'Project name is required'],
@@ -13,20 +18,16 @@ const projectSchema = new Schema<IProject>(
       type: String,
       required: [false, 'Project logo is required'],
     },
-    // IDEA : project Manager er id o ki ekhane rakhte hobe kina..
     projectSuperVisorId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: [false, 'ProjectSuperVisorId is not required'],
     },
-
     projectManagerId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'Project Manager Id is required'],
     },
-
-    // address: {
     streetAddress: {
       type: String,
       required: [false, 'Street Address is required'],
@@ -43,8 +44,6 @@ const projectSchema = new Schema<IProject>(
       type: String,
       required: [false, 'Address is required'],
     },
-    // },
-    // deadline: {
     startDate: {
       type: Date,
       required: [false, 'Start Date is required'],
@@ -53,8 +52,6 @@ const projectSchema = new Schema<IProject>(
       type: Date,
       required: [false, 'End Date is required'],
     },
-    // },
-
     attachments: [
       {
         type: Schema.Types.ObjectId,
@@ -64,12 +61,8 @@ const projectSchema = new Schema<IProject>(
     ],
     projectStatus: {
       type: String,
-      enum: [Status.completed, Status.open],
-      required: [
-        false,
-        'Project Status is required. It can be completed / open',
-      ],
-      // default : Status.open
+      enum: Object.values(Status),
+      default: Status.planning,
     },
     isDeleted: {
       type: Boolean,
@@ -81,15 +74,24 @@ const projectSchema = new Schema<IProject>(
 
 projectSchema.plugin(paginate);
 
-projectSchema.pre('save', function (next) {
+projectSchema.pre<IProject>('save', async function (next) {
+  if (this.isNew) {
+    const ProjectModel = this.constructor as IProjectModel;
+    const lastProject = await ProjectModel.findOne().sort({ createdAt: -1 });
+    if (lastProject && lastProject.pid) {
+      const lastId = parseInt(lastProject.pid.split('-')[1]);
+      this.pid = 'PID-' + (lastId + 1).toString().padStart(3, '0');
+    } else {
+      this.pid = 'PID-001';
+    }
+  }
   next();
 });
 
-// Use transform to rename _id to _projectId
 projectSchema.set('toJSON', {
   transform: function (doc, ret, options) {
-    ret._projectId = ret._id; // Rename _id to _projectId
-    delete ret._id; // Remove the original _id field
+    ret._projectId = ret._id;
+    delete ret._id;
     return ret;
   },
 });

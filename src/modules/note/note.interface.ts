@@ -1,25 +1,25 @@
-import { Model, Types } from 'mongoose';
+import { Model, Types, Document } from 'mongoose';
 import { PaginateOptions, PaginateResult } from '../../types/paginate';
-import { noteStatus } from './note.constant';
+import { UploaderRole } from '../attachments/attachment.constant';
 
-export interface INote {
+export interface INotification {
   _id?: Types.ObjectId;
+  receiverId?: Types.ObjectId | string;
   title: string;
-  description : string;
-  attachments: Types.ObjectId[]; // Array of ObjectId references to Attachment
-  createdBy?: Types.ObjectId | string;
-  dailyLogId?: Types.ObjectId | string;
-  projectId?: Types.ObjectId | string; // Optional field for projectId, remove if not needed
-  viewStatus?: boolean; // Optional field for viewStatus
+  linkId?: Types.ObjectId | string;
+  role: UploaderRole;
+  notificationFor: string;
+  projectId?: Types.ObjectId;
+  extraInformation?: string;
+  viewStatus?: boolean;
+  isDeleted: boolean;
   createdAt?: Date;
   updatedAt?: Date;
-  isAccepted? : noteStatus.accepted | noteStatus.pending | noteStatus.denied;
-  isDeleted : Boolean;
 }
 
-export interface INoteModel extends Model<INote> {
+export interface INotificationModal extends Model<INotification> {
   paginate: (
     query: Record<string, any>,
     options: PaginateOptions
-  ) => Promise<PaginateResult<INote>>;
+  ) => Promise<PaginateResult<INotification>>;
 }

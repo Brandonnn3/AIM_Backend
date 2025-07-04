@@ -2,21 +2,19 @@ import { Model, Types } from 'mongoose';
 import { PaginateOptions, PaginateResult } from '../../types/paginate';
 import { UploaderRole } from '../attachments/attachment.constant';
 
+// FIX: This interface now correctly defines the shape of a notification object.
+// The schema-specific rules (like enums and required fields) belong in the .model.ts file.
 export interface INotification {
   _id?: Types.ObjectId;
   receiverId?: Types.ObjectId | string;
   title: string;
   linkId?: Types.ObjectId | string;
-  role: UploaderRole.projectManager | UploaderRole.projectSupervisor;
-  notificationFor: {
-    type: String;
-    enum: ['project', 'task', 'note', 'attachment'];
-    required: [true, 'notificationFor is required'];
-  };
+  role: UploaderRole; // Use the enum type directly
+  notificationFor: string; // Use a simple string type
   projectId?: Types.ObjectId | undefined;
   extraInformation?: string;
   viewStatus?: boolean;
-  isDeleted: Boolean;
+  isDeleted: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

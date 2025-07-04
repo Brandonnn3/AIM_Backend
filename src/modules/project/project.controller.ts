@@ -1,110 +1,83 @@
-import catchAsync from '../../shared/catchAsync';
-import sendResponse from '../../shared/sendResponse';
+import { RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import pick from '../../shared/pick';
-import { ProjectService } from './project.service';
-import { AttachmentService } from '../attachments/attachment.service';
-import { FolderName } from '../../enums/folderNames';
-import { AttachedToType } from '../attachments/attachment.constant';
-import { NotificationService } from '../notification/notification.services';
 import { io } from '../../server';
+import { AttachedToType, UploaderRole } from '../attachments/attachment.constant';
+import { AttachmentService } from '../attachments/attachment.service';
+import ApiError from '../../errors/ApiError';
+import { FolderName } from '../../enums/folderNames';
+import { INotification } from '../notification/notification.interface';
+import { NotificationService } from '../notification/notification.services';
+import catchAsync from '../../shared/catchAsync';
+import pick from '../../shared/pick';
+import sendResponse from '../../shared/sendResponse';
+import { TUser } from '../user/user.interface';
+import { ProjectService } from './project.service';
 
 const projectService = new ProjectService();
 const attachmentService = new AttachmentService();
 
-const createProject = catchAsync(async (req, res) => {
-  req.body.projectStatus = 'open';
-  req.body.projectManagerId = req.user.userId; // INFO: as project Manager is logged In
+const createProject: RequestHandler = catchAsync(async (req, res) => {
+  const user = req.user as TUser;
 
-  let attachments = [];
+  req.body.projectManagerId = user._id;
+  req.body.projectStatus = 'planning';
 
-  if (req.files && req.files.projectLogo) {
-    attachments.push(
-      ...(await Promise.all(
-        req.files.projectLogo.map(async file => {
-          // let uploadedFileUrl = await uploadFileToSpace(file, FolderName.note);
+  if (req.body.projectSuperVisorId === '' || !req.body.projectSuperVisorId) {
+    delete req.body.projectSuperVisorId;
+  }
 
-          // let fileType;
-          // if (file.mimetype.includes('image')) {
-          //   fileType = AttachmentType.image;
-          // } else if (file.mimetype.includes('application')) {
-          //   fileType = AttachmentType.document;
-          // }
+  let attachments: string[] = [];
+  const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
-          // const attachmentResult = await attachmentService.create({
-          //   attachment: uploadedFileUrl,
-          //   attachmentType: fileType,
-          //   // attachedToId : "",
-          //   // attachedToType : "",
-          //   attachedToType: AttachedToType.project,
-          //   projectId: null,
-          //   uploadedByUserId: req.user.userId,
-          //   uploaderRole: req.user.role,
-          // });
-
-          const attachmentResult =
-            await attachmentService.uploadSingleAttachment(
-              file,
-              FolderName.project,
-              null,
-              req.user,
-              AttachedToType.project
-            );
-
-          return attachmentResult;
-          ///////////////////////////////////////////////////////////////
-        })
-      ))
+  if (files && files.projectLogo) {
+    attachments = await Promise.all(
+      files.projectLogo.map(async (file: Express.Multer.File) => {
+        return await attachmentService.uploadSingleAttachment(
+          file, FolderName.project, null, user, AttachedToType.project
+        );
+      })
     );
   }
 
-  req.body.projectLogo = attachments[0]?.attachment;
+  if (attachments.length > 0) {
+      const firstAttachment = await attachmentService.getById(attachments[0]);
+      if(firstAttachment) {
+        req.body.projectLogo = firstAttachment.attachment;
+      }
+  }
 
   const result = await projectService.create(req.body);
 
-  console.log(result);
+  if (attachments.length > 0 && result._id) {
+      await attachmentService.updateById(attachments[0], { projectId: result._id } as any);
+  }
 
-  // 🟢 notification send to project supervisor
   if (result && result.projectSuperVisorId) {
-    // const registrationToken = user?.fcmToken;
-
-    // if (registrationToken) {
-    //   await sendPushNotification(
-    //     registrationToken,
-    //     `A new note of DailyLog ${result.projectName} has been created by  ${req.user.userName} .`,
-    //     result.projectSuperVisorId.toString()
-    //   );
-    // }
-
-    const MAX_TITLE_LENGTH = 30; // Set a max length for the title
-
+    const MAX_TITLE_LENGTH = 30;
     const truncatedProjectName =
       result.projectName.length > MAX_TITLE_LENGTH
         ? result.projectName.substring(0, MAX_TITLE_LENGTH) + '...'
         : result.projectName;
 
-    // TODO : notification er title ta change kora lagte pare ..
-    // Save Notification to Database
-    const notificationPayload = {
-      title: `Project ${truncatedProjectName} has been created And assigned to you by ${req.user.userName}`,
-      receiverId: result?.projectSuperVisorId,
-      role: 'projectSupervisor', // If receiver is the projectManager
+    const notificationPayload: INotification = {
+      title: `You have been assigned to project: ${truncatedProjectName}`,
+      receiverId: result.projectSuperVisorId,
+      role: UploaderRole.projectSupervisor,
       notificationFor: 'project',
       projectId: result._id,
-      //extraInformation : result._id,
       linkId: result._id,
+      isDeleted: false,
     };
 
-    const notification = await NotificationService.addNotification(
-      notificationPayload
-    );
+    const notification = await NotificationService.addNotification(notificationPayload);
 
-    // 3️⃣ Send Real-Time Notification using Socket.io
-    io?.to(result?.projectSuperVisorId.toString()).emit('newNotification', {
-      code: StatusCodes.OK,
-      message: 'New notification',
-      data: notification,
-    });
+    if (io) {
+      io.to(result.projectSuperVisorId.toString()).emit('newNotification', {
+        code: StatusCodes.OK,
+        message: 'New notification',
+        data: notification,
+      });
+    }
   }
 
   sendResponse(res, {
@@ -115,194 +88,106 @@ const createProject = catchAsync(async (req, res) => {
   });
 });
 
-const getAProject = catchAsync(async (req, res) => {
-  const result = await projectService.getById(req.params.projectId);
-  sendResponse(res, {
-    code: StatusCodes.OK,
-    data: result,
-    message: 'Project retrieved successfully',
-    success: true,
-  });
-});
-
-const getAllProject = catchAsync(async (req, res) => {
-  const result = await projectService.getAll();
-  sendResponse(res, {
-    code: StatusCodes.OK,
-    data: result,
-    message: 'All projects',
-    success: true,
-  });
-});
-
-const getAllProjectWithPagination = catchAsync(async (req, res) => {
-  const filters = pick(req.query, [
-    'projectName',
-    '_id',
-    'projectSuperVisorId',
-    'projectManagerId',
-    'projectStatus',
-  ]);
-  const options = pick(req.query, ['sortBy', 'limit', 'page', 'populate']);
-
-  const query = {};
-
-  // Create a copy of filter without isPreview to handle separately
-  const mainFilter = { ...filters };
-
-  // Loop through each filter field and add conditions if they exist
-  for (const key of Object.keys(mainFilter)) {
-    if (key === 'projectName' && mainFilter[key] !== '') {
-      query[key] = { $regex: mainFilter[key], $options: 'i' }; // Case-insensitive regex search for name
-    } else {
-      query[key] = mainFilter[key];
-    }
-  }
-
-  const result = await projectService.getAllWithPagination(query, options);
-
-  sendResponse(res, {
-    code: StatusCodes.OK,
-    data: result,
-    message: 'All projects with Pagination',
-    success: true,
-  });
-});
-
-const updateById = catchAsync(async (req, res) => {
-  const result = await projectService.updateById(
-    req.params.projectId,
-    req.body
-  );
-  sendResponse(res, {
-    code: StatusCodes.OK,
-    data: result,
-    message: 'Project updated successfully',
-    success: true,
-  });
-});
-
-const softDeleteById = catchAsync(async (req, res) => {
-  const result = await projectService.softDeleteById(req.params.projectId);
-  sendResponse(res, {
-    code: StatusCodes.OK,
-    data: result,
-    message: 'Project deleted successfully',
-    success: true,
-  });
-});
-
-///////////////////////////////////////
-
-const getAllimagesOrDocumentOFnoteOrTaskOrProjectByProjectId = catchAsync(
-  async (req, res) => {
-    console.log(req.query);
-    const { projectId, noteOrTaskOrProject, imageOrDocument, uploaderRole } =
-      req.query;
-    let result;
-    if (projectId) {
-      result =
-        await projectService.getAllimagesOrDocumentOFnoteOrTaskByProjectId(
-          projectId,
-          noteOrTaskOrProject,
-          imageOrDocument,
-          uploaderRole
-        );
-    }
+const getAProject: RequestHandler = catchAsync(async (req, res) => {
+    const result = await projectService.getById(req.params.projectId);
     sendResponse(res, {
-      code: StatusCodes.OK,
-      data: result,
-      message: 'All notes by date and project id',
-      success: true,
+        code: StatusCodes.OK,
+        data: result,
+        message: 'Project retrieved successfully',
+        success: true,
     });
-  }
+});
+
+const getAllProject: RequestHandler = catchAsync(async (req, res) => {
+    const result = await projectService.getAll();
+    sendResponse(res, {
+        code: StatusCodes.OK,
+        data: result,
+        message: 'All projects',
+        success: true,
+    });
+});
+
+const getAllProjectWithPagination: RequestHandler = catchAsync(async (req, res) => {
+    const filters = pick(req.query, [
+        'projectName',
+        '_id',
+        'projectSuperVisorId',
+        'projectManagerId',
+        'projectStatus',
+    ]);
+    const options = pick(req.query, ['sortBy', 'limit', 'page', 'populate']);
+    const query: any = {};
+    for (const key in filters) {
+        if (Object.prototype.hasOwnProperty.call(filters, key)) {
+            if (key === 'projectName' && filters[key]) {
+                query[key] = { $regex: filters[key], $options: 'i' };
+            } else if (filters[key]) {
+                query[key] = filters[key];
+            }
+        }
+    }
+    const result = await projectService.getAllWithPagination(query, options);
+    sendResponse(res, {
+        code: StatusCodes.OK,
+        data: result,
+        message: 'All projects with Pagination',
+        success: true,
+    });
+});
+
+const updateById: RequestHandler = catchAsync(async (req, res) => {
+    const result = await projectService.updateById(
+        req.params.projectId,
+        req.body
+    );
+    sendResponse(res, {
+        code: StatusCodes.OK,
+        data: result,
+        message: 'Project updated successfully',
+        success: true,
+    });
+});
+
+const softDeleteById: RequestHandler = catchAsync(async (req, res) => {
+    const result = await projectService.softDeleteById(req.params.projectId);
+    sendResponse(res, {
+        code: StatusCodes.OK,
+        data: result,
+        message: 'Project deleted successfully',
+        success: true,
+    });
+});
+
+const getAllimagesOrDocumentOFnoteOrTaskOrProjectByProjectId: RequestHandler = catchAsync(
+    async (req, res) => {
+        const { projectId, noteOrTaskOrProject, imageOrDocument, uploaderRole } =
+            req.query;
+        let result;
+        if (projectId) {
+            result =
+                await projectService.getAllimagesOrDocumentOFnoteOrTaskByProjectId(
+                    projectId as string,
+                    noteOrTaskOrProject as string,
+                    imageOrDocument as string,
+                    uploaderRole as string
+                );
+        }
+        sendResponse(res, {
+            code: StatusCodes.OK,
+            data: result,
+            message: 'All images/documents by project id',
+            success: true,
+        });
+    }
 );
 
 export const ProjectController = {
-  createProject,
-  getAllProject,
-  getAllProjectWithPagination,
-  getAProject,
-  updateById,
-  softDeleteById,
-  ///////////////////////
-  getAllimagesOrDocumentOFnoteOrTaskOrProjectByProjectId,
-  // getProjectByProjectName
+    createProject,
+    getAProject,
+    getAllProject,
+    getAllProjectWithPagination,
+    updateById,
+    softDeleteById,
+    getAllimagesOrDocumentOFnoteOrTaskOrProjectByProjectId,
 };
-
-// const createProjectTest = catchAsync(async (req, res) => {
-//   // console.log('req.body 🧪', req.body);
-//   req.body.projectStatus = 'open';
-
-//   // let attachment = null;
-//   // if(req.file){
-//   //   attachment  = await attachmentService.uploadSingleAttachment(
-//   //               req.file,
-//   //               FolderName.aimConstruction,
-//   //               null,
-//   //               req.user,
-//   //               AttachedToType.project
-//   //     );
-//   // }
-
-//   let attachments = [];
-
-//   console.log('req.files :1:', req.files);
-
-//   console.log('req.files.projectLogo :1:', req.files.projectLogo);
-
-//   if (req.files && req.files.projectLogo) {
-//     attachments.push(
-//       ...(await Promise.all(
-//         req.files.projectLogo.map(async file => {
-//           // const attachmenId = await attachmentService.uploadSingleAttachment(
-//           //   file,
-//           //   FolderName.note,
-//           //   null,
-//           //   req.user,
-//           //   AttachedToType.project
-//           // );
-//           // return attachmenId;
-
-//           /////////////////////////////////////////////////////////////
-
-//           let uploadedFileUrl = await uploadFileToSpace(file, FolderName.note);
-
-//           console.log('uploadedFileUrl :🔴🔴: ', uploadedFileUrl);
-
-//           let fileType;
-//           if (file.mimetype.includes('image')) {
-//             fileType = AttachmentType.image;
-//           } else if (file.mimetype.includes('application')) {
-//             fileType = AttachmentType.document;
-//           }
-
-//           const attachmentResult = await attachmentService.create({
-//             attachment: uploadedFileUrl,
-//             attachmentType: fileType,
-//             // attachedToId : "",
-//             // attachedToType : "",
-//             attachedToType: AttachedToType.project,
-//             projectId: null,
-//             uploadedByUserId: req.user.userId,
-//             uploaderRole: req.user.role,
-//           });
-
-//           return attachmentResult;
-//           ///////////////////////////////////////////////////////////////
-//         })
-//       ))
-//     );
-//   }
-
-//   req.body.projectLogo = attachments;
-
-//   // const result = await projectService.create(req.body);
-
-//   sendResponse(res, {
-//     code: StatusCodes.OK,
-//     data: null,
-//     message: 'Project created successfully',
-//     success: true,
-//   });
-// });
