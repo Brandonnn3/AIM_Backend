@@ -8,23 +8,17 @@ const upload = multer({ storage: storage });
 
 const router = express.Router();
 
-
+// GET ALL PROJECTS FOR THE LOGGED-IN MANAGER
 router
   .route('/manager/all')
-  .get(
-    auth('projectManager'), 
-    ProjectController.getAllProjectsByManager
-  );
+  .get(auth('projectManager'), ProjectController.getAllProjectsByManager);
 
-//info : pagination route must be before the route with params
-router.route('/paginate').get(
-  auth('common'), // projectManager
+// GET ALL PROJECTS WITH PAGINATION (FOR ADMINS/OTHER ROLES)
+router
+  .route('/paginate')
+  .get(auth('common'), ProjectController.getAllProjectWithPagination);
 
-  ProjectController.getAllProjectWithPagination
-);
-
-///////////////////////////////////////////////////////////////////////
-// 📢📢📢📢
+// GET ALL IMAGES FOR A PROJECT
 router
   .route('/getAllImagesOfAllNotesOfAProjectId')
   .get(
@@ -32,32 +26,31 @@ router
     ProjectController.getAllimagesOrDocumentOFnoteOrTaskOrProjectByProjectId
   );
 
+// GET A SINGLE PROJECT BY ITS ID
 router
   .route('/:projectId')
   .get(auth('projectManager'), ProjectController.getAProject);
 
-router.route('/update/:projectId').put(
-  auth('projectManager'),
-  // validateRequest(UserValidation.createUserValidationSchema),
-  ProjectController.updateById
-);
+// UPDATE A PROJECT
+router
+  .route('/update/:projectId')
+  .put(auth('projectManager'), ProjectController.updateById);
 
-//[🚧][🧑‍💻✅][🧪] // 🆗
+// GET ALL PROJECTS (GENERAL)
 router.route('/').get(auth('common'), ProjectController.getAllProject);
 
-//[🚧][🧑‍💻✅][🧪] // 🆗
+// CREATE A NEW PROJECT
 router.route('/create').post(
-  // [upload.single("projectLogo")],
   [
     upload.fields([
-      { name: 'projectLogo', maxCount: 1 }, // Allow up to 1 cover photos
+      { name: 'projectLogo', maxCount: 1 },
     ]),
   ],
   auth('projectManager'),
-  // validateRequest(UserValidation.createUserValidationSchema),
   ProjectController.createProject
 );
 
+// SOFT DELETE A PROJECT
 router
   .route('/soft-delete/:projectId')
   .delete(auth('projectManager'), ProjectController.softDeleteById);
