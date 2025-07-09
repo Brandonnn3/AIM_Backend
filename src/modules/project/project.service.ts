@@ -10,6 +10,18 @@ export class ProjectService extends GenericService<typeof Project> {
     super(Project);
   }
 
+  async getAllProjectsByManagerId(managerId: string) {
+    if (!mongoose.Types.ObjectId.isValid(managerId)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid manager ID');
+    }
+
+    const projects = await this.model
+      .find({ projectManagerId: managerId })
+      .populate('projectSuperVisorId', 'fname lname email profileImage'); // Optional: Gets supervisor details
+
+    return projects;
+  }
+
   // project must be softDeleted // its already implemented in Generic Service ..
 
   async getAllimagesOrDocumentOFnoteOrTaskByProjectId(

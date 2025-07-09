@@ -108,6 +108,17 @@ const getAllProject: RequestHandler = catchAsync(async (req, res) => {
     });
 });
 
+const getAllProjectsByManager: RequestHandler = catchAsync(async (req, res) => {
+  const user = req.user as TUser;
+  const result = await projectService.getAllProjectsByManagerId(user._id);
+  sendResponse(res, {
+    code: StatusCodes.OK,
+    data: result,
+    message: 'Manager projects retrieved successfully',
+    success: true,
+  });
+});
+
 const getAllProjectWithPagination: RequestHandler = catchAsync(async (req, res) => {
     const filters = pick(req.query, [
         'projectName',
@@ -186,6 +197,7 @@ export const ProjectController = {
     createProject,
     getAProject,
     getAllProject,
+    getAllProjectsByManager,
     getAllProjectWithPagination,
     updateById,
     softDeleteById,

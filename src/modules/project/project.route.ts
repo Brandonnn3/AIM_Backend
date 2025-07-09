@@ -8,12 +8,21 @@ const upload = multer({ storage: storage });
 
 const router = express.Router();
 
+
+router
+  .route('/manager/all')
+  .get(
+    auth('projectManager'), 
+    ProjectController.getAllProjectsByManager
+  );
+
 //info : pagination route must be before the route with params
 router.route('/paginate').get(
   auth('common'), // projectManager
 
   ProjectController.getAllProjectWithPagination
 );
+
 ///////////////////////////////////////////////////////////////////////
 // 📢📢📢📢
 router
