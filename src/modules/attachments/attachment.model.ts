@@ -1,4 +1,4 @@
-import { model, Schema } from 'mongoose';
+import { model, Schema, Document } from 'mongoose'; // Corrected import
 import paginate from '../../common/plugins/paginate';
 import { IAttachment, IAttachmentModel } from './attachment.interface';
 import {
@@ -44,7 +44,7 @@ const attachmentSchema = new Schema<IAttachment>(
     },
     uploaderRole: {
       type: String,
-      enum: [UploaderRole.projectManager, UploaderRole.projectSupervisor],
+      enum: [UploaderRole.projectManager, UploaderRole.projectSupervisor, UploaderRole.admin], // Added admin
       required: true,
     },
     reactions: [
@@ -58,11 +58,12 @@ const attachmentSchema = new Schema<IAttachment>(
 
 attachmentSchema.plugin(paginate);
 
-// Use transform to rename _id to _projectId
+// FIX: Add types to the transform function parameters
 attachmentSchema.set('toJSON', {
-  transform: function (doc, ret, options) {
-    ret._attachmentId = ret._id; // Rename _id to _projectId
-    delete ret._id; // Remove the original _id field
+  transform: function (doc: any, ret: any, options: any) {
+    ret.id = ret._id; // Create a new 'id' field
+    delete ret._id;   // Delete the original _id
+    delete ret.__v;  // Delete the __v
     return ret;
   },
 });

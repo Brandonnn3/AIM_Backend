@@ -122,31 +122,23 @@ const getAllProjectsByManager: RequestHandler = catchAsync(async (req, res) => {
 });
 
 const getAllProjectWithPagination: RequestHandler = catchAsync(async (req, res) => {
-    const filters = pick(req.query, [
-        'projectName',
-        '_id',
-        'projectSuperVisorId',
-        'projectManagerId',
-        'projectStatus',
-    ]);
-    const options = pick(req.query, ['sortBy', 'limit', 'page', 'populate']);
-    const query: any = {};
-    for (const key in filters) {
-        if (Object.prototype.hasOwnProperty.call(filters, key)) {
-            if (key === 'projectName' && filters[key]) {
-                query[key] = { $regex: filters[key], $options: 'i' };
-            } else if (filters[key]) {
-                query[key] = filters[key];
-            }
-        }
-    }
-    const result = await projectService.getAllWithPagination(query, options);
-    sendResponse(res, {
-        code: StatusCodes.OK,
-        data: result,
-        message: 'All projects with Pagination',
-        success: true,
-    });
+  // FIX: Cast req.user to 'any' to access token properties directly
+  const user = req.user as any; 
+
+  // FIX: Check for 'userId' from the token, not '_id'
+  if (!user || !user.userId) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not found in token');
+  }
+
+  // FIX: Pass the correct 'userId' property to the service
+  const result = await projectService.getAllProjectsByManagerId(user.userId);
+
+  sendResponse(res, {
+  code: StatusCodes.OK,
+  data: result,
+  message: 'Manager projects retrieved successfully',
+  success: true,
+});
 });
 
 const updateById: RequestHandler = catchAsync(async (req, res) => {

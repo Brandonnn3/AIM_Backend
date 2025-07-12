@@ -17,6 +17,7 @@ const auth = (...roles: string[]) =>
     }
 
     const token = tokenWithBearer.split(' ')[1];
+    // This verifyToken function internally uses jwt.verify and returns the decoded payload
     const verifiedUserPayload = await TokenService.verifyToken(
       token,
       config.jwt.accessSecret as Secret,
@@ -27,18 +28,19 @@ const auth = (...roles: string[]) =>
       throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid token. Please log in again.');
     }
 
+    // FINAL FIX: Use verifiedUserPayload.userId to find the user
+    // The decoded token payload has the 'userId' property.
     const user = await User.findById(verifiedUserPayload.userId);
 
     if (!user) {
-      throw new ApiError(StatusCodes.NOT_FOUND, 'User not found.');
+      throw new ApiError(StatusCodes.NOT_FOUND, 'User associated with this token not found.');
     }
     if (!user.isEmailVerified) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Your account is not verified.');
     }
-
-    // MODIFIED: Attach the full user object from the database to the request.
-    // This is the most robust solution and ensures all user data is available for subsequent logic.
-    req.user = user;
+    
+    // Attach the full user object from the database to the request.
+    (req as any).user = user;
 
     if (roles.length) {
       const userRole = roleRights.get(user.role);

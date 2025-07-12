@@ -141,9 +141,10 @@ userSchema.pre('save', async function (next) {
 
 // Use transform to rename _id to _userId
 userSchema.set('toJSON', {
-  transform: function (doc, ret, options) {
-    ret._userId = ret._id; // Rename _id to _userId
-    delete ret._id; // Remove the original _id field
+  transform: function (doc: any, ret: any, options: any) {
+    ret.id = ret._id; // Create a new 'id' field
+    delete ret._id;   // Delete the original _id
+    delete ret.__v;  // Delete the __v
     return ret;
   },
 });

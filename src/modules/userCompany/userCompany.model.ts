@@ -29,9 +29,10 @@ userCompanySchema.index({ userId: 1, companyId: 1 });
 userCompanySchema.plugin(paginate);
 
 userCompanySchema.set('toJSON', {
-  transform: function (doc, ret, options) {
-    ret._userCompanyId = ret._id;
-    delete ret._id;
+  transform: function (doc: any, ret: any, options: any) {
+    ret.id = ret._id; // Create a new 'id' field
+    delete ret._id;   // Delete the original _id
+    delete ret.__v;  // Delete the __v
     return ret;
   },
 });

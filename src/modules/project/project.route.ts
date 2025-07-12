@@ -16,7 +16,7 @@ router
 // GET ALL PROJECTS WITH PAGINATION (FOR ADMINS/OTHER ROLES)
 router
   .route('/paginate')
-  .get(auth('common'), ProjectController.getAllProjectWithPagination);
+  .get(auth('projectManager'), ProjectController.getAllProjectWithPagination);
 
 // GET ALL IMAGES FOR A PROJECT
 router
