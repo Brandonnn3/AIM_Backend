@@ -12,9 +12,7 @@ import pick from '../../shared/pick';
 import sendResponse from '../../shared/sendResponse';
 import { TUser } from '../user/user.interface';
 import { noteStatus } from './note.constant';
-import { Note } from './note.model';
 import { NoteService } from './note.service';
-import { IAttachmentModel } from '../attachments/attachment.interface';
 import { Project } from '../project/project.model';
 import { Types } from 'mongoose';
 
@@ -22,9 +20,10 @@ const noteService = new NoteService();
 const attachmentService = new AttachmentService();
 
 const createNote: RequestHandler = catchAsync(async (req, res) => {
-  const user = req.user as TUser;
+  const user = req.user as any; // Use 'any' to avoid type conflicts with TUser
 
-  if (!user || !user._id) {
+  // FIX: Check for user.userId from the auth token
+  if (!user || !user.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not authenticated');
   }
 
@@ -33,7 +32,7 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Project not found');
   }
 
-  const userId = user._id.toString();
+  const userId = user.userId.toString(); // FIX: Use user.userId from the token
   const projectManagerId = project.projectManagerId?.toString();
   const projectSupervisorId = project.projectSuperVisorId
     ? project.projectSuperVisorId.toString()
@@ -46,7 +45,7 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
     );
   }
 
-  req.body.createdBy = user._id;
+  req.body.createdBy = user.userId; // FIX: Use user.userId
   req.body.isAccepted = noteStatus.pending;
 
   let attachments: string[] = [];
@@ -68,9 +67,10 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
   if (attachments.length > 0) {
     await Promise.all(
       attachments.map(async (attachmentId: string) => {
+        // FIX: Cast to 'any' to solve the type mismatch
         await attachmentService.updateById(attachmentId, {
           attachedToId: result._id,
-        } as Partial<IAttachmentModel>);
+        } as any);
       })
     );
   }
@@ -82,12 +82,12 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
       : result.title;
 
   const notificationPayload: INotification = {
-    title: `Note "${truncatedTitle}" created by ${user.fname}`,
+    title: `Note "${truncatedTitle}" created by ${user.userName}`, // Changed from fname
     receiverId: project.projectManagerId,
     role: UploaderRole.projectManager,
     notificationFor: 'note',
     linkId: result._id,
-    projectId: project._id as Types.ObjectId, // FIX: Cast to ObjectId
+    projectId: project._id as Types.ObjectId,
     isDeleted: false,
   };
 
@@ -157,7 +157,7 @@ const deleteById: RequestHandler = catchAsync(async (req, res) => {
     if (note && note.attachments && note.attachments.length > 0) {
         await Promise.all(
             note.attachments.map(async (attachmentId: any) => {
-                let attachment = await attachmentService.getById(attachmentId);
+                const attachment = await attachmentService.getById(attachmentId);
                 if (attachment) {
                     await attachmentService.deleteById(attachmentId);
                 }

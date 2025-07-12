@@ -8,6 +8,7 @@ export interface INotification {
   _id?: Types.ObjectId;
   receiverId?: Types.ObjectId | string;
   title: string;
+  image?: string;
   linkId?: Types.ObjectId | string;
   role: UploaderRole; // Use the enum type directly
   notificationFor: string; // Use a simple string type

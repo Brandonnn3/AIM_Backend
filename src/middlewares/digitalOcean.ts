@@ -56,10 +56,10 @@ export const uploadFileToSpace = async (
 
 
 // Helper function to get the content length of a stream
-const getStreamLength = (stream) => {
+const getStreamLength = (stream: any) => {
   return new Promise((resolve, reject) => {
     let length = 0;
-    stream.on('data', (chunk) => {
+    stream.on('data', (chunk: any) => {
       length += chunk.length;
     });
     stream.on('end', () => resolve(length));

@@ -14,15 +14,11 @@ export class ProjectService extends GenericService<typeof Project> {
     if (!mongoose.Types.ObjectId.isValid(managerId)) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid manager ID');
     }
-
     const projects = await this.model
       .find({ projectManagerId: managerId })
-      .populate('projectSuperVisorId', 'fname lname email profileImage'); // Optional: Gets supervisor details
-
+      .populate('projectSuperVisorId', 'fname lname email profileImage');
     return projects;
   }
-
-  // project must be softDeleted // its already implemented in Generic Service ..
 
   async getAllimagesOrDocumentOFnoteOrTaskByProjectId(
     projectId: string,
@@ -33,12 +29,10 @@ export class ProjectService extends GenericService<typeof Project> {
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       throw new ApiError(StatusCodes.NOT_FOUND, 'Invalid projectId');
     }
-
-    //🟢 Query Notes with exact date match for the given projectId and date range
     const attachments = await Attachment.find({
-      attachedToType: { $in: ['note', 'task', 'project'] }, // 'note'
+      attachedToType: { $in: ['note', 'task', 'project'] },
       projectId: projectId,
-      attachmentType: imageOrDocument, // 'image'
+      attachmentType: imageOrDocument,
       uploaderRole: uploaderRole,
     })
       .select(
@@ -46,16 +40,8 @@ export class ProjectService extends GenericService<typeof Project> {
       )
       .exec();
 
-    // TODO :  query aro optimize korar try korte hobe
-
-    // Helper function to extract the date portion (YYYY-MM-DD)
-    //  const extractDate = (date) => {
-    //   return new Date(date).toISOString().split('T')[0]; // Extract YYYY-MM-DD
-    // };
-
-    // Helper function to format date as "Sunday, February 23, 2025"
     const formatDate = (date: any) => {
-      const options = {
+      const options: Intl.DateTimeFormatOptions = {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
@@ -63,18 +49,16 @@ export class ProjectService extends GenericService<typeof Project> {
       };
       return new Date(date).toLocaleDateString('en-US', options);
     };
-    // Group attachments by date
+
     const groupedByDate = attachments.reduce((acc: any, attachment) => {
-      // const dateKey = extractDate(attachment.createdAt); // Extract YYYY-MM-DD
       const dateKey = formatDate(attachment.createdAt);
       if (!acc[dateKey]) {
-        acc[dateKey] = []; // Initialize array for the date
+        acc[dateKey] = [];
       }
-      acc[dateKey].push(attachment); // Add the attachment to the corresponding date
+      acc[dateKey].push(attachment);
       return acc;
     }, {});
 
-    // Transform into the desired output format
     const result = Object.keys(groupedByDate).map(date => ({
       date: date,
       attachments: groupedByDate[date],

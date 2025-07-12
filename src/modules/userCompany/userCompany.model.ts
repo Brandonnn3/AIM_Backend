@@ -1,12 +1,14 @@
 import { model, Schema } from 'mongoose';
 import paginate from '../../common/plugins/paginate';
-import { ICompany, ICompanyModel } from './userCompany.interface';
+// FIX: Import the corrected interface names
+import { IUserCompany, IUserCompanyModel } from './userCompany.interface';
 
-const userCompanySchema = new Schema<ICompany>(
+// FIX: Use the corrected interface name
+const userCompanySchema = new Schema<IUserCompany>(
   {
     userId: {
       type: Schema.Types.ObjectId,
-      ref: 'User', 
+      ref: 'User',
       required: [false, 'User Id is required'],
     },
     companyId: {
@@ -17,23 +19,22 @@ const userCompanySchema = new Schema<ICompany>(
     role: {
       type: String,
       required: [false, 'Role is not required'],
-    }
+    },
   },
   { timestamps: true }
 );
 
-// Indexes for performance
-userCompanySchema.index({ userId: 1, companyId: 1 }); // , { unique: true }
+userCompanySchema.index({ userId: 1, companyId: 1 });
 
 userCompanySchema.plugin(paginate);
 
-// Use transform to rename _id to _projectId
 userCompanySchema.set('toJSON', {
   transform: function (doc, ret, options) {
-    ret._userCompanyId = ret._id; // Rename _id to _projectId
-    delete ret._id; // Remove the original _id field
+    ret._userCompanyId = ret._id;
+    delete ret._id;
     return ret;
   },
 });
 
-export const UserCompany = model<ICompany, ICompanyModel>('UserCompany', userCompanySchema);
+// FIX: Use the corrected interface names
+export const UserCompany = model<IUserCompany, IUserCompanyModel>('UserCompany', userCompanySchema);

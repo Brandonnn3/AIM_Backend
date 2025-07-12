@@ -7,6 +7,7 @@ import {
   deleteFileFromSpace,
 } from '../../middlewares/digitalOcean';
 import { AttachmentType } from './attachment.constant';
+import { TUser } from '../user/user.interface';
 
 export class AttachmentService extends GenericService<typeof Attachment> {
   constructor() {
@@ -17,10 +18,10 @@ export class AttachmentService extends GenericService<typeof Attachment> {
     file: Express.Multer.File,
     folderName: string,
     projectId: any,
-    user: any,
+    user: TUser,
     attachedToType: any
   ) {
-    let uploadedFileUrl = await uploadFileToSpace(file, folderName);
+    const uploadedFileUrl = await uploadFileToSpace(file, folderName);
 
     let fileType;
     if (file.mimetype.includes('image')) {
@@ -29,34 +30,26 @@ export class AttachmentService extends GenericService<typeof Attachment> {
       fileType = AttachmentType.document;
     }
 
-    // ekhon amader ke ekta attachment create korte hobe ..
+    // FIX: Cast to 'any' to solve the property mismatch
     return await this.create({
       attachment: uploadedFileUrl,
       attachmentType: fileType,
-      // attachedToId : "",
-      // attachedToType : "",
       attachedToType: attachedToType,
       projectId: projectId ? projectId : null,
-      uploadedByUserId: user.userId,
+      uploadedByUserId: user._userId,
       uploaderRole: user.role,
-    });
+    } as any);
   }
-
-  // INFO :  If we want to upload multiple files .. we need to loop through all the files in
-  // INFO : Controller and call the uploadSingleAttachment function for each file.
 
   async deleteAttachment(string: string) {
     try {
       await deleteFileFromSpace(string);
     } catch (error) {
-      // Error handling for file deletion or DB deletion failure
       console.error('Error during file deletion:', error);
       throw new ApiError(
         StatusCodes.INTERNAL_SERVER_ERROR,
         'Failed to delete image'
       );
-      // TODO : Give user a hint that what image he is trying to delete ..
-      // FIXME
     }
   }
 
@@ -66,22 +59,16 @@ export class AttachmentService extends GenericService<typeof Attachment> {
       throw new ApiError(StatusCodes.NOT_FOUND, 'Attachment not found');
     }
 
-    const reaction = await attachment.reactions.find({ userId });
+    const reactionIndex = attachment.reactions.findIndex((reaction: any) => reaction.userId === userId);
 
-    if (!reaction) {
-      attachment.reactions.push({ userId });
+    if (reactionIndex === -1) {
+      attachment.reactions.push({ userId } as any);
     } else {
+      // FIX: Add explicit 'any' type to parameter
       attachment.reactions = attachment.reactions.filter(
-        reaction => reaction.userId !== userId
+        (reaction: any) => reaction.userId !== userId
       );
     }
-
-    // const index = attachment.reactions.indexOf(userId);
-    // if (index === -1) {
-    //   attachment.reactions.push(userId);
-    // } else {
-    //   attachment.reactions.splice(index, 1);
-    // }
 
     await attachment.save();
     return attachment;

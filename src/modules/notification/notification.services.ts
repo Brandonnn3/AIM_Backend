@@ -4,6 +4,10 @@ import { Notification } from './notification.model';
 import { User } from '../user/user.model';
 import { PaginateOptions, PaginateResult } from '../../types/paginate';
 import ApiError from '../../errors/ApiError';
+// FIX: Import the UploaderRole enum
+import { UploaderRole } from '../attachments/attachment.constant';
+import { io } from '../../server';
+
 
 const addNotification = async (
   payload: INotification
@@ -32,7 +36,8 @@ const getAdminNotifications = async (
   filters: Partial<INotification>,
   options: PaginateOptions
 ): Promise<PaginateResult<INotification>> => {
-  filters.role = 'admin'; // Important SQL
+  // FIX: Use the enum member directly instead of a string
+  filters.role = UploaderRole.admin;
   return Notification.paginate(filters, options);
 };
 
@@ -54,20 +59,23 @@ const addCustomNotification = async (
   const messageEvent = `${eventName}::${userId}`;
   const result = await addNotification(notifications);
 
-  if (eventName === 'admin-notification' && notifications.role === 'admin') {
-    //@ts-ignore
-    io.emit('admin-notification', {
-      code: StatusCodes.OK,
-      message: 'New notification',
-      data: result,
-    });
+  // FIX: Use the enum member directly instead of a string
+  if (eventName === 'admin-notification' && notifications.role === UploaderRole.admin) {
+    if (io) {
+        io.emit('admin-notification', {
+        code: StatusCodes.OK,
+        message: 'New notification',
+        data: result,
+      });
+    }
   } else {
-    //@ts-ignore
-    io.emit(messageEvent, {
-      code: StatusCodes.OK,
-      message: 'New notification',
-      data: result,
-    });
+    if (io) {
+        io.emit(messageEvent, {
+        code: StatusCodes.OK,
+        message: 'New notification',
+        data: result,
+      });
+    }
   }
   return result;
 };
@@ -84,7 +92,6 @@ const viewNotification = async (notificationId: string) => {
   return result;
 };
 
-// Test korte hobe .. 
 const deleteNotification = async (notificationId: string) => {
   const result = await Notification.findByIdAndDelete(notificationId);
   if (!result) {
@@ -93,11 +100,10 @@ const deleteNotification = async (notificationId: string) => {
   return result;
 };
 
-// Test korte hobe ... 
 const clearAllNotification = async (userId: string) => {
   const user = await User.findById(userId);
   if (user?.role === 'projectManager') {
-    const result = await Notification.deleteMany({ role: 'projectManager' });
+    const result = await Notification.deleteMany({ role: UploaderRole.projectManager });
     return result;
   }
   const result = await Notification.deleteMany({ receiverId: userId });

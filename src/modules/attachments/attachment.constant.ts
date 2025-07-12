@@ -13,4 +13,5 @@ export enum AttachedToType {
 export enum UploaderRole {
     projectManager = 'projectManager',
     projectSupervisor = 'projectSupervisor',
+    admin = 'admin',
 }

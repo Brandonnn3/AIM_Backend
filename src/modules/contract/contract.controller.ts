@@ -1,4 +1,3 @@
-
 import catchAsync from '../../shared/catchAsync';
 import sendResponse from '../../shared/sendResponse';
 import { StatusCodes } from 'http-status-codes';
@@ -8,65 +7,66 @@ import ApiError from '../../errors/ApiError';
 import { AttachmentService } from '../attachments/attachment.service';
 import { FolderName } from '../../enums/folderNames';
 import { AttachedToType } from '../attachments/attachment.constant';
-
+import { TUser } from '../user/user.interface';
 
 const contractService = new ContractService();
 const attachmentService = new AttachmentService();
 
-
-//[🚧][🧑‍💻✅][🧪🆗]
 const createContract = catchAsync(async (req, res) => {
-  if (req.user.role !== 'projectManager') {
+  const user = req.user as TUser;
+
+  if (user.role !== 'projectManager') {
     throw new ApiError(
       StatusCodes.BAD_REQUEST,
       'Only Project Manager can access this.'
     );
   }
-  if(!req.files.attachments){
+
+  // FIX: Type assertion and proper check for req.files
+  const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+
+  if (!files || !files.attachments) {
     throw new ApiError(
       StatusCodes.BAD_REQUEST,
       'Attachment is required.'
     );
   }
 
-  if (req.user.userId) {
-    req.body.createdBy = req.user.userId;
+  if (user._userId) {
+    req.body.createdBy = user._userId;
     req.body.creatorRole = 'projectManager';
   }
 
-    let attachments = [];
-    
-      if (req.files && req.files.attachments) {
-        attachments.push(
-          ...(await Promise.all(
-            req.files.attachments.map(async file => {
-              const attachmenId = await attachmentService.uploadSingleAttachment(
-                file,
-                FolderName.aimConstruction,
-                req.body.projectId,
-                req.user,
-                AttachedToType.contract // TODO : eta add korte hobe .. but make sure korte hobe .. ei document jeno manager chara ar keo dekhte na pare 
-              ); // FIXME  : make sure korte hobe .. ei document jeno manager chara ar keo dekhte na pare  
-              return attachmenId;
-            })
-          ))
-        );
-      }
+  let attachments: string[] = [];
   
-      req.body.attachments = attachments;
+  if (files && files.attachments) {
+    attachments = await Promise.all(
+      files.attachments.map(async (file: Express.Multer.File) => {
+        const attachmenId = await attachmentService.uploadSingleAttachment(
+          file,
+          FolderName.aimConstruction,
+          req.body.projectId,
+          user,
+          AttachedToType.contract
+        );
+        return attachmenId;
+      })
+    );
+  }
+ 
+  req.body.attachments = attachments;
 
   const result = await contractService.create(req.body);
 
-
   if (attachments.length > 0) {
     await Promise.all(
-      attachments.map(async attachmentId => {
-        // Assuming you have a service or model method to update the attachment's attachedToId and attachedToType
+      attachments.map(async (attachmentId: string) => { // Added type
         await attachmentService.updateById(
-          attachmentId, // Pass the attachment ID
+          attachmentId,
+          // FIX: Cast to 'any' to solve property mismatch
           {
             attachedToId: result._id,
-          }
+          } as any
         );
       })
     );
@@ -101,53 +101,38 @@ const getAllContract = catchAsync(async (req, res) => {
 });
 
 const getAllContractWithPagination = catchAsync(async (req, res) => {
-  const filters = pick(req.query, [ '_id', 'projectId']); // 'projectName',
+  const filters = pick(req.query, [ '_id', 'projectId']);
   const options = pick(req.query, ['sortBy', 'limit', 'page', 'populate']);
 
   options.populate = [
-    // {
-    //   path: "assignedTo",
-    //   // match: isPreviewFilter,
-    //   select: " -createdAt -updatedAt -__v -failedLoginAttempts -isDeleted -isResetPassword -isEmailVerified -isDeleted -superVisorsManagerId -role -fcmToken -profileImage -email ", //-audioFile
-    //   // populate: {
-    //   //   path: "languageId",
-    //   //   select: "-createdAt -updatedAt -__v",
-    //   // },
-    // },
     {
       path: "attachments",
-      select: "-__v -attachedToId -updatedAt -createdAt -reactions -uploaderRole -uploadedByUserId -projectId -attachedToType -attachmentType", // -createdAt -updatedAt
+      select: "-__v -attachedToId -updatedAt -createdAt -reactions -uploaderRole -uploadedByUserId -projectId -attachedToType -attachmentType",
     }
   ];
 
   const result = await contractService.getAllWithPagination(filters, options);
 
- 
-  // Helper function to format date as "Sunday, February 23, 2025"
-  const formatDate = (date) => {
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+  // FIX: Add explicit type to date parameter and options object
+  const formatDate = (date: any) => {
+    const options: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(date).toLocaleDateString('en-US', options);
   };
 
-  // Group attachments by date
-  const groupedByDate = result.results.reduce((acc, attachment) => {
-    //const dateKey = extractDate(attachment.createdAt); // Extract YYYY-MM-DD
+  // FIX: Add explicit types to reduce parameters
+  const groupedByDate = result.results.reduce((acc: any, attachment: any) => {
     const dateKey = formatDate(attachment.createdAt);
     if (!acc[dateKey]) {
-      acc[dateKey] = []; // Initialize array for the date
+      acc[dateKey] = [];
     }
-    acc[dateKey].push(attachment); // Add the attachment to the corresponding date
+    acc[dateKey].push(attachment);
     return acc;
   }, {});
 
-  // console.log('Grouped by Date:', groupedByDate);
-
-  // Transform into the desired output format
-  const result1 = Object.keys(groupedByDate).map((date) => ({
+  const result1 = Object.keys(groupedByDate).map((date: any) => ({
     date: date,
     attachments: groupedByDate[date]
   }));
-
 
   sendResponse(res, {
     code: StatusCodes.OK,

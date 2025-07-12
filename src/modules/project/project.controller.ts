@@ -18,7 +18,6 @@ const attachmentService = new AttachmentService();
 
 const createProject: RequestHandler = catchAsync(async (req, res) => {
   const user = req.user as TUser;
-
   req.body.projectManagerId = user._id;
   req.body.projectStatus = 'planning';
 
@@ -110,6 +109,9 @@ const getAllProject: RequestHandler = catchAsync(async (req, res) => {
 
 const getAllProjectsByManager: RequestHandler = catchAsync(async (req, res) => {
   const user = req.user as TUser;
+  if (!user || !user._id) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not found or invalid token');
+  }
   const result = await projectService.getAllProjectsByManagerId(user._id);
   sendResponse(res, {
     code: StatusCodes.OK,

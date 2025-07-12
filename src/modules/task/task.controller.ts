@@ -11,6 +11,10 @@ import { NotificationService } from '../notification/notification.services';
 import { Project } from '../project/project.model';
 import { sendPushNotification } from '../../utils/firebaseUtils';
 import ApiError from '../../errors/ApiError';
+import { TUser } from '../user/user.interface';
+import { INotification } from '../notification/notification.interface';
+import { io } from '../../server';
+import { Types } from 'mongoose'; // Make sure mongoose Types is imported
 
 const taskService = new TaskService();
 const attachmentService = new AttachmentService();
@@ -18,27 +22,23 @@ const attachmentService = new AttachmentService();
 const changeStatusOfATaskFix = catchAsync(async (req, res) => {
   const { status } = req.query;
 
-  // Step 1: Check if status is present in req.query
   if (!status) {
-    return res.status(400).json({ error: 'Status is required' });
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Status is required');
   }
 
-  // Step 2: Check if status is one of the valid values in noteStatus enum
   if (!Object.values(TaskStatus).includes(status as TaskStatus)) {
-    return res
-      .status(400)
-      .json({
-        error: `Invalid status value. it can be  ${Object.values(
-          noteStatus
-        ).join(', ')}`,
-      });
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      `Invalid status value. It can be ${Object.values(TaskStatus).join(', ')}`
+    );
   }
 
   const result = await taskService.getById(req.params.taskId);
 
-  result.task_status = status;
-
-  await result.save();
+  if (result) {
+    result.task_status = status as TaskStatus;
+    await result.save();
+  }
 
   sendResponse(res, {
     code: StatusCodes.OK,
@@ -56,7 +56,6 @@ const changeStatusOfATask = catchAsync(async (req, res) => {
     } else if (result.task_status === TaskStatus.complete) {
       result.task_status = TaskStatus.open;
     }
-
     await result.save();
   }
   sendResponse(res, {
@@ -67,30 +66,30 @@ const changeStatusOfATask = catchAsync(async (req, res) => {
   });
 });
 
-//[🚧][🧑‍💻✅][🧪🆗] // working perfectly
 const createTask = catchAsync(async (req, res) => {
-  if (req.user.userId) {
-    req.body.createdBy = req.user.userId;
+  const user = req.user as any;
+  if (user.userId) {
+    req.body.createdBy = user.userId;
   }
 
   req.body.task_status = TaskStatus.open;
 
-  let attachments = [];
+  let attachments: string[] = [];
+  
+  const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
 
-  if (req.files && req.files.attachments) {
-    attachments.push(
-      ...(await Promise.all(
-        req.files.attachments.map(async file => {
-          const attachmenId = await attachmentService.uploadSingleAttachment(
-            file,
-            FolderName.task,
-            req.body.projectId,
-            req.user,
-            AttachedToType.task
-          );
-          return attachmenId;
-        })
-      ))
+  if (files && files.attachments) {
+    attachments = await Promise.all(
+      files.attachments.map(async (file: Express.Multer.File) => {
+        const attachmenId = await attachmentService.uploadSingleAttachment(
+          file,
+          FolderName.task,
+          req.body.projectId,
+          user,
+          AttachedToType.task
+        );
+        return attachmenId;
+      })
     );
   }
 
@@ -98,81 +97,66 @@ const createTask = catchAsync(async (req, res) => {
 
   const result = await taskService.create(req.body);
 
-  // Now loop through the attachments array and update the attachedToId and attachedToType
   if (attachments.length > 0) {
     await Promise.all(
-      attachments.map(async attachmentId => {
-        // Assuming you have a service or model method to update the attachment's attachedToId and attachedToType
+      attachments.map(async (attachmentId: string) => {
         await attachmentService.updateById(
-          attachmentId, // Pass the attachment ID
+          attachmentId,
           {
             attachedToId: result._id,
-          }
+          } as any
         );
       })
     );
   }
 
-  /*** ✅ NOTIFICATION LOGIC STARTS HERE ✅ ***/
-
-  // 1️⃣ Find the ProjectManager for the given projectId
-  const project = await Project.findById(req.body.projectId).populate(
-    'projectSuperVisorId'
-  );
+  const project = await Project.findById(req.body.projectId).populate('projectSuperVisorId');
 
   if (!project) {
-    throw new ApiError(
-      StatusCodes.NOT_FOUND,
-      'Project is not found by projectId also cannot populate by projectSuperVisorId'
-    );
+    throw new ApiError(StatusCodes.NOT_FOUND,'Project is not found');
   }
 
   if ((project && project.projectSuperVisorId) || result.assignedTo) {
-    const registrationToken = req.user?.fcmToken;
+    const registrationToken = user?.fcmToken;
 
     if (registrationToken) {
       await sendPushNotification(
         registrationToken,
-        // INFO : amar title, message dorkar nai .. just .. title hoilei hobe ..
-        `A new note of DailyLog ${result.title} has been created by  ${req.user.userName} .`,
+        `A new note of DailyLog ${result.title} has been created by  ${user.userName} .`,
         project.projectManagerId.toString()
       );
     }
 
-    const MAX_TITLE_LENGTH = 23; // Set a max length for the title
-
+    const MAX_TITLE_LENGTH = 23;
     const truncatedTaskName =
       result.title.length > MAX_TITLE_LENGTH
         ? result.title.substring(0, MAX_TITLE_LENGTH) + '...'
         : result.title;
-
-    const notificationPayload = {
-      title: `Task ${truncatedTaskName} Created has been created by ${req.user.userName}.`,
-      // message: `A new task ${result.title} has been created by ${req.user.userName}.`,
-      receiverId: project.projectSuperVisorId, // receiver is  projectSuperVisor
+        
+    const notificationPayload: INotification = {
+      title: `Task ${truncatedTaskName} Created has been created by ${user.userName}.`,
+      receiverId: project.projectSuperVisorId,
       notificationFor: 'task',
-      role: 'projectSupervisor', // TODO :  check korte hobe .. thik ase kina ..
-      image: project.projectLogo || '', // req.user.profilePicture || "", // Optional
-      projectId: project._id,
+      role: 'projectSupervisor' as any,
+      image: project.projectLogo || '',
+      projectId: project._id as Types.ObjectId,
       extraInformation: project.projectName,
-
-      linkId: result._id, // Link to the note
+      linkId: result._id,
+      isDeleted: false,
     };
 
-    // 2️⃣ Save Notification to Database
     const notification = await NotificationService.addNotification(
       notificationPayload
     );
-
-    // 3️⃣ Send Real-Time Notification using Socket.io
-    io.to(project.projectManagerId.toString()).emit('newNotification', {
-      code: StatusCodes.OK,
-      message: 'New notification',
-      data: notification,
-    });
+    
+    if (io) {
+      io.to(project.projectManagerId.toString()).emit('newNotification', {
+        code: StatusCodes.OK,
+        message: 'New notification',
+        data: notification,
+      });
+    }
   }
-
-  /*** ✅ NOTIFICATION LOGIC ENDS HERE ✅ ***/
 
   sendResponse(res, {
     code: StatusCodes.OK,
@@ -200,14 +184,14 @@ const getAllTask = catchAsync(async (req, res) => {
 });
 
 const getAllTaskWithPagination = catchAsync(async (req, res) => {
-  const filters = pick(req.query, ['_id', 'title', 'task_status', 'projectId']); // 'projectName',
+  const filters = pick(req.query, ['_id', 'title', 'task_status', 'projectId']);
   const options = pick(req.query, ['sortBy', 'limit', 'page', 'populate']);
 
   options.populate = [
     {
       path: 'assignedTo',
       select:
-        ' -createdAt -updatedAt -__v -failedLoginAttempts -isDeleted -isResetPassword -isEmailVerified -isDeleted -superVisorsManagerId -role -fcmToken -profileImage -email ', //-audioFile
+        ' -createdAt -updatedAt -__v -failedLoginAttempts -isDeleted -isResetPassword -isEmailVerified -isDeleted -superVisorsManagerId -role -fcmToken -profileImage -email ',
     },
     {
       path: 'attachments',
@@ -215,15 +199,13 @@ const getAllTaskWithPagination = catchAsync(async (req, res) => {
     },
   ];
 
-  const query = {};
+  const query: any = {};
 
-  // Create a copy of filter without isPreview to handle separately
   const mainFilter = { ...filters };
 
-  // Loop through each filter field and add conditions if they exist
   for (const key of Object.keys(mainFilter)) {
     if (key === 'title' && mainFilter[key] !== '') {
-      query[key] = { $regex: mainFilter[key], $options: 'i' }; // Case-insensitive regex search for name
+      query[key] = { $regex: mainFilter[key], $options: 'i' };
     } else {
       query[key] = mainFilter[key];
     }
@@ -231,13 +213,12 @@ const getAllTaskWithPagination = catchAsync(async (req, res) => {
 
   const result = await taskService.getAllWithPagination(query, options);
 
-  // Process the result to include imageCount and documentCount
-  const modifiedResult = result.results.map(task => {
+  const modifiedResult = result.results.map((task: any) => {
     const imageCount = task.attachments.filter(
-      attachment => attachment.attachmentType === 'image'
+      (attachment: any) => attachment.attachmentType === 'image'
     ).length;
     const documentCount = task.attachments.filter(
-      attachment => attachment.attachmentType === 'document'
+      (attachment: any) => attachment.attachmentType === 'document'
     ).length;
 
     return {
@@ -249,7 +230,7 @@ const getAllTaskWithPagination = catchAsync(async (req, res) => {
 
   sendResponse(res, {
     code: StatusCodes.OK,
-    data: modifiedResult, // result, // modifiedResult, // result,
+    data: modifiedResult,
     message: 'All tasks with Pagination',
   });
 });
@@ -263,20 +244,16 @@ const updateById = catchAsync(async (req, res) => {
   });
 });
 
-//[🚧][🧑‍💻✅][🧪🆗] // working perfectly
 const deleteById = catchAsync(async (req, res) => {
   const task = await taskService.getById(req.params.taskId);
 
   if (task) {
     if (task.attachments && task.attachments.length > 0) {
       await Promise.all(
-        task.attachments.map(async attachmentId => {
-          // ei attachment id ta exist kore kina sheta age check korte hobe
-          let attachment = await attachmentService.getById(attachmentId);
+        task.attachments.map(async (attachmentId: any) => {
+          const attachment = await attachmentService.getById(attachmentId);
           if (attachment) {
-            const attachmentDeleteRes = await attachmentService.deleteById(
-              attachmentId
-            );
+            await attachmentService.deleteById(attachmentId);
           } else {
             console.log('attachment not found ...');
           }

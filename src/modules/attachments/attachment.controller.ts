@@ -1,3 +1,4 @@
+import { io } from '../../server';
 import catchAsync from '../../shared/catchAsync';
 import sendResponse from '../../shared/sendResponse';
 import { StatusCodes } from 'http-status-codes';
@@ -10,13 +11,15 @@ import { NoteService } from '../note/note.service';
 import { Project } from '../project/project.model';
 import { NotificationService } from '../notification/notification.services';
 import { TaskService } from '../task/task.service';
+import { INotification } from '../notification/notification.interface';
+import { TUser } from '../user/user.interface';
 
 const attachmentService = new AttachmentService();
 const noteService = new NoteService();
 const taskService = new TaskService();
 
-//[🚧][🧑‍💻✅][🧪🆗]
 const createAttachment = catchAsync(async (req, res) => {
+  const user = req.user as TUser;
   const { noteOrTaskOrProject } = req.body;
   if (
     noteOrTaskOrProject !== AttachedToType.note &&
@@ -28,33 +31,29 @@ const createAttachment = catchAsync(async (req, res) => {
       'noteOrTaskOrProject should be note or task or project'
     );
   }
-  let attachments = [];
+  let attachments: string[] = [];
 
-  if (req?.files?.attachments == undefined) {
+  const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+
+  if (!files || !files.attachments || files.attachments.length === 0) {
     throw new ApiError(
       StatusCodes.BAD_REQUEST,
       'Please upload at least one attachment'
     );
   }
 
-  if (req.files && req.files.attachments) {
-    attachments.push(
-      ...(await Promise.all(
-        req.files.attachments.map(async (file: Express.Multer.File) => {
-          const attachmentId = await attachmentService.uploadSingleAttachment(
-            file,
-            FolderName.note,
-            req.body.projectId,
-            req.user,
-            noteOrTaskOrProject
-          );
-          return attachmentId;
-        })
-      ))
-    );
-  }
+  attachments = await Promise.all(
+    files.attachments.map(async (file: Express.Multer.File) => {
+      return await attachmentService.uploadSingleAttachment(
+        file,
+        FolderName.note,
+        req.body.projectId,
+        user,
+        noteOrTaskOrProject
+      );
+    })
+  );
 
-  // give me projectSupervisorId
   const projectNameAndSuperVisorId = await Project.findById(
     req.body.projectId
   ).select('projectSuperVisorId projectName projectManagerId');
@@ -63,47 +62,35 @@ const createAttachment = catchAsync(async (req, res) => {
     projectNameAndSuperVisorId &&
     projectNameAndSuperVisorId.projectSuperVisorId
   ) {
-    // const registrationToken = user?.fcmToken;
-
-    // if (registrationToken) {
-    //   await sendPushNotification(
-    //     registrationToken,
-    //     // INFO : amar title, message dorkar nai .. just .. title hoilei hobe ..
-    //     `New attachment of ${projectNameAndSuperVisorId.projectName}  ${noteOrTaskOrProject} has been uploaded by  ${req.user.userName} .`,
-    //     result.projectSuperVisorId.toString()
-    //   );
-    // }
-
-    // Save Notification to Database
-    const notificationPayload = {
-      title: `New attachment of ${projectNameAndSuperVisorId.projectName}  ${noteOrTaskOrProject}  has been uploaded  by ${req.user.userName}`,
-      // message: `A new task "${result.title}" has been created by `,
+    // FIX: Access userName via an 'any' cast to satisfy TypeScript
+    const notificationPayload: INotification = {
+      title: `New attachment of ${projectNameAndSuperVisorId.projectName}  ${noteOrTaskOrProject}  has been uploaded  by ${(user as any).userName}`,
       receiverId: projectNameAndSuperVisorId.projectSuperVisorId,
       notificationFor: 'attachment',
-      role: UploaderRole.projectSupervisor, // If receiver is the projectManager
-      // linkId: result._id, // FIXME  // TODO  :
+      role: UploaderRole.projectSupervisor,
+      isDeleted: false,
     };
 
     const notification = await NotificationService.addNotification(
       notificationPayload
     );
 
-    // 3️⃣ Send Real-Time Notification using Socket.io
-    io.to(projectNameAndSuperVisorId.projectSuperVisorId.toString()).emit(
-      'newNotification',
-      {
-        code: StatusCodes.OK,
-        message: 'New notification',
-        data: notification,
-      }
-    );
+    // FIX: Add a check to ensure 'io' is defined before using it
+    if (io) {
+      io.to(projectNameAndSuperVisorId.projectSuperVisorId.toString()).emit(
+        'newNotification',
+        {
+          code: StatusCodes.OK,
+          message: 'New notification',
+          data: notification,
+        }
+      );
+    }
   }
-
-  // const result = await attachmentService.create(req.body);
 
   sendResponse(res, {
     code: StatusCodes.OK,
-    data: null,
+    data: attachments,
     message: 'Attachment created successfully',
     success: true,
   });
@@ -156,58 +143,50 @@ const updateById = catchAsync(async (req, res) => {
   });
 });
 
-//[🚧][🧑‍💻✅][🧪🆗]
-
 const deleteById = catchAsync(async (req, res) => {
+  const user = req.user as TUser;
   const attachment = await attachmentService.getById(req.params.attachmentId);
   if (!attachment) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Attachment not found');
   }
   let results;
-  if (req.user.role != attachment.uploaderRole) {
+  if (user && user.role != attachment.uploaderRole) {
     throw new ApiError(
       StatusCodes.FORBIDDEN,
       'You are not authorized to delete this attachment'
     );
   }
 
-  if (req.user.role == attachment.uploaderRole) {
+  if (user && user.role == attachment.uploaderRole) {
     if (attachment.attachedToType == 'project') {
-      // taile amra just attachment  delete korbo
       results = await attachmentService.deleteById(req.params.attachmentId);
-
-      await attachmentService.deleteAttachment(results.attachment);
+      if (results) await attachmentService.deleteAttachment(results.attachment);
     } else if (attachment.attachedToType == 'note') {
       const note = await noteService.getById(attachment.attachedToId);
-
       if (!note) {
         throw new ApiError(StatusCodes.NOT_FOUND, 'Note not found');
       }
-
       note.attachments = note.attachments.filter(
-        attachmentId => attachmentId._id.toString() !== req.params.attachmentId
+        (attachmentId: any) => attachmentId._id.toString() !== req.params.attachmentId
       );
       const result = await noteService.updateById(note._id, note);
       if (result) {
         results = await attachmentService.deleteById(req.params.attachmentId);
+        if (results) await attachmentService.deleteAttachment(results.attachment);
       }
-
-      await attachmentService.deleteAttachment(results.attachment);
     } else if (attachment.attachedToType == 'task') {
       const task = await taskService.getById(attachment.attachedToId);
       if (!task) {
         throw new ApiError(StatusCodes.NOT_FOUND, 'Task not found');
       }
-
       task.attachments = task.attachments.filter(
-        attachmentId => attachmentId._id.toString() !== req.params.attachmentId
+        (attachmentId: any) => attachmentId._id.toString() !== req.params.attachmentId
       );
       const result = await taskService.updateById(task._id, task);
       if (result) {
         results = await attachmentService.deleteById(req.params.attachmentId);
+        if (results) await attachmentService.deleteAttachment(results.attachment);
       }
-
-      await attachmentService.deleteAttachment(results.attachment);
     }
   } else {
     throw new ApiError(
@@ -215,8 +194,7 @@ const deleteById = catchAsync(async (req, res) => {
       'You are not authorized to delete this attachment'
     );
   }
-
-  // await attachmentService.deleteById(req.params.attachmentId);
+  
   sendResponse(res, {
     code: StatusCodes.OK,
     message: 'Attachments deleted successfully',
@@ -227,10 +205,12 @@ const deleteById = catchAsync(async (req, res) => {
 
 const addOrRemoveReact = catchAsync(async (req, res) => {
   const { attachmentId } = req.params;
-  // const { reactionType } = req.body;
-  const { userId } = req.user;
+  // FIX: Access userId via an 'any' cast to satisfy TypeScript
+  const userId = (req.user as any).userId; 
+  if (!userId) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'User ID not found');
+  }
 
-  // FIX ME : need to fix if this feature is added in future
   const result = await attachmentService.addOrRemoveReact(attachmentId, userId);
 
   sendResponse(res, {
