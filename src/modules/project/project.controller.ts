@@ -122,23 +122,22 @@ const getAllProjectsByManager: RequestHandler = catchAsync(async (req, res) => {
 });
 
 const getAllProjectWithPagination: RequestHandler = catchAsync(async (req, res) => {
-  // FIX: Cast req.user to 'any' to access token properties directly
-  const user = req.user as any; 
+  // FIX: Cast req.user to 'any' to resolve all type conflicts.
+  const user = req.user as any;
 
-  // FIX: Check for 'userId' from the token, not '_id'
-  if (!user || !user.userId) {
-    throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not found in token');
+  // Now, we can safely access the _id from the user object.
+  if (!user || !user._id) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'User information is missing');
   }
 
-  // FIX: Pass the correct 'userId' property to the service
-  const result = await projectService.getAllProjectsByManagerId(user.userId);
+  const result = await projectService.getAllProjectsByManagerId(user._id.toString());
 
   sendResponse(res, {
-  code: StatusCodes.OK,
-  data: result,
-  message: 'Manager projects retrieved successfully',
-  success: true,
-});
+    code: StatusCodes.OK,
+    data: result,
+    message: 'Manager projects retrieved successfully',
+    success: true,
+  });
 });
 
 const updateById: RequestHandler = catchAsync(async (req, res) => {
