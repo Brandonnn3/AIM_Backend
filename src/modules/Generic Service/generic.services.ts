@@ -50,10 +50,18 @@ export class GenericService<T> {
   }
 
   async softDeleteById(id: string) {
-    return await this.model.findByIdAndUpdate(
-      id,
-      { isDeleted: true },
-      { new: true }
-    );
+    // Find the document first
+    const document = await this.model.findById(id);
+
+    // If it doesn't exist, throw an error
+    if (!document) {
+      throw new ApiError(StatusCodes.NOT_FOUND, 'Document not found');
+    }
+
+    // Set the flag and explicitly save the change
+    document.isDeleted = true;
+    await document.save();
+    
+    return document;
   }
 }
