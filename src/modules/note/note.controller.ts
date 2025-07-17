@@ -1,3 +1,5 @@
+// src/modules/note/note.controller.ts
+
 import { RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { io } from '../../server';
@@ -20,11 +22,19 @@ const noteService = new NoteService();
 const attachmentService = new AttachmentService();
 
 const createNote: RequestHandler = catchAsync(async (req, res) => {
-  const user = req.user as any; // Use 'any' to avoid type conflicts with TUser
+  // --- Enhanced Logging for Debugging ---
+  console.log('--- CREATE NOTE REQUEST ---');
+  console.log('HEADERS:', req.headers);
+  console.log('BODY:', req.body);
+  console.log('FILES:', req.files);
+  console.log('USER FROM TOKEN:', req.user); // ✨ Log the user object to see its structure
+  console.log('--------------------------');
 
-  // FIX: Check for user.userId from the auth token
-  if (!user || !user.userId) {
-    throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not authenticated');
+  const user = req.user as any;
+
+  // ✨ FIX: Check for user and user._id from the auth token. This is the likely source of the 401 error.
+  if (!user || !user._id) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not authenticated or user ID missing in token.');
   }
 
   const project = await Project.findById(req.body.projectId);
@@ -32,7 +42,7 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Project not found');
   }
 
-  const userId = user.userId.toString(); // FIX: Use user.userId from the token
+  const userId = user._id.toString(); // ✨ FIX: Use user._id from the token
   const projectManagerId = project.projectManagerId?.toString();
   const projectSupervisorId = project.projectSuperVisorId
     ? project.projectSuperVisorId.toString()
@@ -45,8 +55,16 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
     );
   }
 
-  req.body.createdBy = user.userId; // FIX: Use user.userId
+  req.body.createdBy = user._id; // ✨ FIX: Use user._id
   req.body.isAccepted = noteStatus.pending;
+
+  // ✨ NEW: Handle the date sent from the client.
+  // If the frontend sends a date string (e.g., "2025-07-16"), this will set the
+  // note's creation timestamp to that specific date. This prevents timezone
+  // issues and ensures the note appears on the correct day in the UI.
+  if (req.body.date) {
+    req.body.createdAt = new Date(req.body.date);
+  }
 
   let attachments: string[] = [];
   const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -67,7 +85,6 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
   if (attachments.length > 0) {
     await Promise.all(
       attachments.map(async (attachmentId: string) => {
-        // FIX: Cast to 'any' to solve the type mismatch
         await attachmentService.updateById(attachmentId, {
           attachedToId: result._id,
         } as any);
@@ -81,8 +98,11 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
       ? result.title.substring(0, MAX_TITLE_LENGTH) + '...'
       : result.title;
 
+  // ✨ FIX: Ensure user.userName exists, otherwise provide a fallback.
+  const creatorName = user.userName || user.fname || 'A user';
+  
   const notificationPayload: INotification = {
-    title: `Note "${truncatedTitle}" created by ${user.userName}`, // Changed from fname
+    title: `Note "${truncatedTitle}" created by ${creatorName}`,
     receiverId: project.projectManagerId,
     role: UploaderRole.projectManager,
     notificationFor: 'note',
@@ -102,7 +122,7 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
   }
 
   sendResponse(res, {
-    code: StatusCodes.OK,
+    code: StatusCodes.CREATED, // ✨ FIX: Use 201 Created for successful resource creation
     data: result,
     message: 'Note created successfully',
     success: true,
