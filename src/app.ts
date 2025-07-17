@@ -61,12 +61,4 @@ app.use(globalErrorHandler);
 app.use(notFound);
 
 
-// =========================================================
-// NEW: Add this temporary debugging code
-// =========================================================
-console.log('--- DEFINED API ENDPOINTS ---');
-console.log(listEndpoints(app));
-// =========================================================
-
-
 export default app;

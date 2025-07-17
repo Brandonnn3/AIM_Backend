@@ -1,4 +1,3 @@
-console.log('--- SERVER.TS HAS BEEN UPDATED AND IS RUNNING THE LATEST VERSION ---');
 import colors from 'colors';
 import mongoose from 'mongoose';
 import { Server } from 'socket.io';
