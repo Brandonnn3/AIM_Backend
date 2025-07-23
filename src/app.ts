@@ -10,6 +10,10 @@ import i18next from './i18n/i18n'; // Import the i18next configuration
 import i18nextMiddleware from 'i18next-express-middleware';
 import listEndpoints from 'express-list-endpoints'; // NEW: Add this import at the top
 
+import { s3Client } from './services/s3Service'; // Import the client
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
+
 const app = express();
 
 // morgan
@@ -41,6 +45,41 @@ app.use(i18nextMiddleware.handle(i18next));
 
 // router
 app.use('/api/v1', router);
+
+// --- MinIO/S3 Local File Serving Endpoint (Development Only) ---
+// This endpoint is for development only. It intercepts requests for uploaded files
+// and streams them directly from the local MinIO server. This allows the
+// Flutter app to display images without needing a separate file server.
+if (process.env.NODE_ENV === 'development') {
+    app.get('/uploads/:companyId/:projectId/:fileName', async (req: Request, res: Response) => {
+        const { companyId, projectId, fileName } = req.params;
+        const key = `${companyId}/${projectId}/${fileName}`;
+
+        try {
+            const command = new GetObjectCommand({
+                Bucket: process.env.MINIO_BUCKET_NAME,
+                Key: key,
+            });
+
+            const { Body } = await s3Client.send(command);
+
+            if (Body instanceof Readable) {
+                // Pipe the stream from MinIO to the response
+                Body.pipe(res);
+            } else {
+                res.status(500).send('Error: File body is not a readable stream.');
+            }
+        } catch (error: any) {
+            // A 404 from S3/MinIO often comes as a 'NoSuchKey' error.
+            if (error.name === 'NoSuchKey') {
+                console.error(`File not found in MinIO: ${key}`);
+                return res.status(404).send('File not found');
+            }
+            console.error('Error fetching file from MinIO:', error);
+            res.status(500).send('Internal server error');
+        }
+    });
+}
 
 // live response
 app.get('/test', (req: Request, res: Response) => {

@@ -14,25 +14,22 @@ import { TaskService } from '../task/task.service';
 import { INotification } from '../notification/notification.interface';
 import { TUser } from '../user/user.interface';
 
+// --- FIX: Instantiate all required services ---
 const attachmentService = new AttachmentService();
 const noteService = new NoteService();
 const taskService = new TaskService();
 
 const createAttachment = catchAsync(async (req, res) => {
   const user = req.user as TUser;
-  const { noteOrTaskOrProject } = req.body;
-  if (
-    noteOrTaskOrProject !== AttachedToType.note &&
-    noteOrTaskOrProject !== AttachedToType.task &&
-    noteOrTaskOrProject !== AttachedToType.project
-  ) {
-    throw new ApiError(
-      StatusCodes.NOT_FOUND,
-      'noteOrTaskOrProject should be note or task or project'
-    );
-  }
-  let attachments: string[] = [];
+  const { noteId, projectId, noteOrTaskOrProject, taskId } = req.body;
 
+  // Determine the ID to attach to (either noteId or taskId)
+  const attachedToId = noteId || taskId;
+
+  if (!attachedToId || !projectId) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'A projectId and either a noteId or taskId are required to upload an attachment.');
+  }
+  
   const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
 
   if (!files || !files.attachments || files.attachments.length === 0) {
@@ -42,14 +39,15 @@ const createAttachment = catchAsync(async (req, res) => {
     );
   }
 
-  attachments = await Promise.all(
+  const attachments = await Promise.all(
     files.attachments.map(async (file: Express.Multer.File) => {
-      return await attachmentService.uploadSingleAttachment(
+      // The service now handles linking to the correct ID
+      return await attachmentService.uploadAndLinkAttachment(
         file,
-        FolderName.note,
-        req.body.projectId,
+        projectId,
+        attachedToId,
         user,
-        noteOrTaskOrProject
+        noteOrTaskOrProject || AttachedToType.note
       );
     })
   );
@@ -62,9 +60,8 @@ const createAttachment = catchAsync(async (req, res) => {
     projectNameAndSuperVisorId &&
     projectNameAndSuperVisorId.projectSuperVisorId
   ) {
-    // FIX: Access userName via an 'any' cast to satisfy TypeScript
     const notificationPayload: INotification = {
-      title: `New attachment of ${projectNameAndSuperVisorId.projectName}  ${noteOrTaskOrProject}  has been uploaded  by ${(user as any).userName}`,
+      title: `New attachment of ${projectNameAndSuperVisorId.projectName} ${noteOrTaskOrProject} has been uploaded by ${(user as any).fname}`,
       receiverId: projectNameAndSuperVisorId.projectSuperVisorId,
       notificationFor: 'attachment',
       role: UploaderRole.projectSupervisor,
@@ -75,7 +72,6 @@ const createAttachment = catchAsync(async (req, res) => {
       notificationPayload
     );
 
-    // FIX: Add a check to ensure 'io' is defined before using it
     if (io) {
       io.to(projectNameAndSuperVisorId.projectSuperVisorId.toString()).emit(
         'newNotification',
@@ -91,7 +87,7 @@ const createAttachment = catchAsync(async (req, res) => {
   sendResponse(res, {
     code: StatusCodes.OK,
     data: attachments,
-    message: 'Attachment created successfully',
+    message: 'Attachment created and linked successfully',
     success: true,
   });
 });
@@ -205,7 +201,6 @@ const deleteById = catchAsync(async (req, res) => {
 
 const addOrRemoveReact = catchAsync(async (req, res) => {
   const { attachmentId } = req.params;
-  // FIX: Access userId via an 'any' cast to satisfy TypeScript
   const userId = (req.user as any).userId; 
   if (!userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'User ID not found');
@@ -237,6 +232,7 @@ const deleteByFileUrl = catchAsync(async (req, res) => {
   });
 });
 
+// --- FIX: Restore the full export list ---
 export const AttachmentController = {
   createAttachment,
   getAllAttachment,

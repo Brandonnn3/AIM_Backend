@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  minio:
+    image: minio/minio
+    container_name: aim-construction-minio
+    ports:
+      - "9000:9000"   # API Port
+      - "9001:9001"   # Console/UI Port
+    environment:
+      MINIO_ROOT_USER: 'aim-access-key' # Your Access Key
+      MINIO_ROOT_PASSWORD: 'aim-secret-key-super-secure' # Your Secret Key
+    volumes:
+      - ./minio_data:/data
+    command: server /data --console-address ":9001"
+
+volumes:
+  minio_data:

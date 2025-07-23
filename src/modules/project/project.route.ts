@@ -1,6 +1,7 @@
 import express from 'express';
 import auth from '../../middlewares/auth';
 import { ProjectController } from './project.controller';
+import { NoteController } from '../note/note.controller';
 
 const multer = require('multer');
 const storage = multer.memoryStorage();
@@ -23,7 +24,7 @@ router
   .route('/getAllImagesOfAllNotesOfAProjectId')
   .get(
     auth('common'),
-    ProjectController.getAllimagesOrDocumentOFnoteOrTaskOrProjectByProjectId
+    NoteController.getAllimagesOrDocumentOFnoteOrTaskOrProjectByDateAndProjectId
   );
 
 // GET A SINGLE PROJECT BY ITS ID

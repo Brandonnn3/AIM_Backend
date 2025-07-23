@@ -48,12 +48,9 @@ router.route('/delete/:taskId').delete(
 
 
 //[🚧][🧑‍💻✅][🧪🆗]
-router
-  .route('/changeStatus/:taskId')
-  .get(auth('common'), TaskController.changeStatusOfATask);
-
-  router
-  .route('/changeStatusOfATask/:taskId')
-  .get(auth('common'), TaskController.changeStatusOfATaskFix);
+router.route('/changeStatus/:taskId').patch(
+  auth('common'), // We will handle specific permissions in the controller
+  TaskController.changeStatusOfATask
+);
 
 export const TaskRoutes = router;

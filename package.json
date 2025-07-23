@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "seeder": "ts-node src/utils/seeder.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev": "NODE_ENV=development ts-node-dev --respawn --transpile-only src/server.ts",
     "lint:check": "eslint --ignore-path .eslintignore --ext .js,.ts",
     "lint:fix": "lint . --fix",
     "prettier:check": "prettier --ignore-path .gitignore --write \"**/*.+(js|ts|json)\"",
@@ -37,7 +37,7 @@
     "typescript": "^5.7.2"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.758.0",
+    "@aws-sdk/client-s3": "^3.848.0",
     "@aws-sdk/lib-storage": "^3.758.0",
     "@mailchimp/mailchimp_marketing": "^3.0.80",
     "bcrypt": "^5.1.1",

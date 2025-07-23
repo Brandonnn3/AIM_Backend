@@ -4,6 +4,9 @@ import { Note } from './note.model';
 import { StatusCodes } from 'http-status-codes';
 import ApiError from '../../errors/ApiError';
 import { Attachment } from '../attachments/attachment.model';
+import { AttachmentService } from '../attachments/attachment.service';
+
+const attachmentService = new AttachmentService();
 
 export class NoteService extends GenericService<typeof Note> {
   constructor() {
@@ -41,13 +44,12 @@ export class NoteService extends GenericService<typeof Note> {
     }
 
     const parsedDate = new Date(date);
-
     if (isNaN(parsedDate.getTime())) {
       throw new ApiError(StatusCodes.NOT_FOUND, 'Invalid date format');
     }
 
-    const startOfDay = new Date(parsedDate.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(parsedDate.setHours(23, 59, 59, 999));
+    const startOfDay = new Date(new Date(parsedDate).setHours(0, 0, 0, 0));
+    const endOfDay = new Date(new Date(parsedDate).setHours(23, 59, 59, 999));
 
     const notesWithAttachmentCounts = await Note.aggregate([
       {
@@ -68,69 +70,55 @@ export class NoteService extends GenericService<typeof Note> {
         $addFields: {
           imageCount: {
             $size: {
-              $filter: {
-                input: '$attachmentDetails',
-                as: 'att',
-                cond: { $eq: ['$$att.attachmentType', 'image'] },
-              },
+              $filter: { input: '$attachmentDetails', as: 'att', cond: { $eq: ['$$att.attachmentType', 'image'] } },
             },
           },
           documentCount: {
             $size: {
-              $filter: {
-                input: '$attachmentDetails',
-                as: 'att',
-                cond: { $eq: ['$$att.attachmentType', 'document'] },
-              },
+              $filter: { input: '$attachmentDetails', as: 'att', cond: { $eq: ['$$att.attachmentType', 'document'] } },
             },
           },
         },
       },
-      {
-        $sort: {
-          createdAt: -1,
-        },
-      },
+      { $sort: { createdAt: -1 } },
       {
         $project: {
-          _id: 1,
-          title: 1,
-          description: 1,
-          isAccepted: 1,
-          createdAt: 1,
-          imageCount: 1,
-          documentCount: 1,
+          _id: 1, title: 1, description: 1, isAccepted: 1, createdAt: 1, imageCount: 1, documentCount: 1,
         },
       },
     ]);
 
-    const totalNoteCount = await Note.countDocuments({
-      projectId: projectId,
-      createdAt: { $gte: startOfDay, $lte: endOfDay },
-    });
-
-    const totalImageCount = await Attachment.countDocuments({
-      attachedToType: 'note',
-      projectId: projectId,
-      attachmentType: 'image',
-      uploaderRole: 'projectSupervisor',
-      createdAt: { $gte: startOfDay, $lte: endOfDay },
-    });
-
-    const totalDocumentCount = await Attachment.countDocuments({
-      attachedToType: 'note',
-      projectId: projectId,
-      attachmentType: 'document',
-      uploaderRole: 'projectSupervisor',
-      createdAt: { $gte: startOfDay, $lte: endOfDay },
+    // --- FIX: Calculate totals by summing the counts from the aggregation result ---
+    let totalImageCount = 0;
+    let totalDocumentCount = 0;
+    notesWithAttachmentCounts.forEach(note => {
+        totalImageCount += note.imageCount;
+        totalDocumentCount += note.documentCount;
     });
 
     return {
       notes: notesWithAttachmentCounts,
-      totalNoteCount,
+      totalNoteCount: notesWithAttachmentCounts.length,
       imageCount: totalImageCount,
       documentCount: totalDocumentCount,
     };
+  }
+
+  async deleteNoteAndAttachments(noteId: string) {
+    const note = await Note.findById(noteId).populate('attachments');
+    if (!note) {
+      throw new ApiError(StatusCodes.NOT_FOUND, 'Note not found');
+    }
+
+    if (note.attachments && note.attachments.length > 0) {
+      for (const attachment of note.attachments as any[]) {
+        await attachmentService.deleteAttachment(attachment.attachment);
+        await attachmentService.deleteById(attachment._id.toString());
+      }
+    }
+
+    await this.deleteById(noteId);
+    return { success: true, message: 'Note and attachments deleted.' };
   }
 
   async getPreviewByDateAndProjectId(projectId: string, date: string) {
@@ -175,77 +163,52 @@ export class NoteService extends GenericService<typeof Note> {
       throw new ApiError(StatusCodes.NOT_FOUND, 'Invalid projectId');
     }
 
-    const parsedDate = new Date(date);
+    // --- FIX: Build the query dynamically based on provided filters ---
+    const query: any = {
+      projectId: new mongoose.Types.ObjectId(projectId),
+    };
 
-    if (isNaN(parsedDate.getTime())) {
-      throw new ApiError(StatusCodes.NOT_FOUND, 'Invalid date format');
+    if (imageOrDocument) {
+      query.attachmentType = imageOrDocument;
+    }
+    if (noteOrTaskOrProject) {
+      query.attachedToType = noteOrTaskOrProject;
+    }
+    if (uploaderRole) {
+      query.uploaderRole = uploaderRole;
     }
 
-    const startOfDay = new Date(parsedDate.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(parsedDate.setHours(23, 59, 59, 999));
+    // Only add the date filter if a valid date is provided
+if (date) {
+    // --- FIX: Force UTC parsing to avoid timezone bugs ---
+    // Appending 'T00:00:00.000Z' treats the date as midnight UTC
+    const parsedDate = new Date(`${date}T00:00:00.000Z`);
 
-    const attachments = await Attachment.find({
-      attachedToType: noteOrTaskOrProject,
-      projectId: projectId,
-      attachmentType: imageOrDocument,
-      uploaderRole: uploaderRole,
-      createdAt: { $gte: startOfDay, $lte: endOfDay },
-    })
+    if (!isNaN(parsedDate.getTime())) {
+        const startOfDay = new Date(parsedDate);
+        // Use setUTCHours to guarantee we're working in UTC
+        startOfDay.setUTCHours(0, 0, 0, 0);
+
+        const endOfDay = new Date(parsedDate);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+
+        query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+    }
+}
+
+    console.log('Executing final attachment query:', JSON.stringify(query, null, 2));
+
+    // Now, execute the dynamically built query
+    const attachments = await Attachment.find(query)
       .select(
         '-projectId -updatedAt -__v -attachedToId -note -_attachmentId -attachmentType'
       )
+      .sort({ createdAt: -1 }) // Sort by most recent
       .exec();
-
-    const totalImageCount = await Attachment.countDocuments({
-      attachedToType: noteOrTaskOrProject,
-      projectId: projectId,
-      attachmentType: 'image',
-      uploaderRole: uploaderRole,
-      createdAt: { $gte: startOfDay, $lte: endOfDay },
-    });
-
-    const totalDocumentCount = await Attachment.countDocuments({
-      attachedToType: noteOrTaskOrProject,
-      projectId: projectId,
-      attachmentType: 'document',
-      uploaderRole: uploaderRole,
-      createdAt: { $gte: startOfDay, $lte: endOfDay },
-    });
-
-    const totalNoteCount = await Note.countDocuments({
-      projectId: projectId,
-      createdAt: { $gte: startOfDay, $lte: endOfDay },
-    });
-
-    // FIX: Explicitly type the date parameter to avoid implicit 'any' error.
-    const formatDate = (date: string | Date | undefined): string => {
-      if (!date) return '';
-      const options: Intl.DateTimeFormatOptions = {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      };
-      return new Date(date).toLocaleDateString('en-US', options);
-    };
-
-    const groupedByDate = attachments.reduce((acc: any, attachment) => {
-      const dateKey = formatDate(attachment.createdAt);
-      if (!acc[dateKey]) {
-        acc[dateKey] = [];
-      }
-      acc[dateKey].push(attachment);
-      return acc;
-    }, {});
-
-    const result = Object.keys(groupedByDate).map(date => ({
-      date: date,
-      attachments: groupedByDate[date],
-      totalNoteCount,
-      totalImageCount,
-      totalDocumentCount,
-    }));
-
-    return result;
+    
+    // The rest of the function for grouping and returning data can be simplified
+    // since we now just have a flat list of attachments.
+    // This example returns the flat list, which is easier for the client to handle.
+    return attachments;
   }
 }
