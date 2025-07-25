@@ -14,6 +14,45 @@ export class AttachmentService extends GenericService<typeof Attachment> {
     super(Attachment);
   }
 
+  // ✨ ADD THIS ENTIRE NEW METHOD ✨
+  async uploadAndCreateAttachment(
+    file: Express.Multer.File,
+    metadata: {
+      projectId: string;
+      user: TUser;
+      attachedToType: string;
+      customName?: string;
+      // This method does not require a noteId
+    }
+  ) {
+    const { projectId, user, attachedToType, customName } = metadata;
+
+    const uploadedFileUrl = await uploadFile({
+      fileBuffer: file.buffer,
+      companyId: (user as any).companyId || 'aim-construction',
+      projectId: projectId,
+      originalname: file.originalname,
+    });
+
+    let fileType = file.mimetype.startsWith('image/')
+      ? AttachmentType.image
+      : AttachmentType.document;
+
+    const newAttachment = await this.create({
+      attachment: uploadedFileUrl,
+      attachmentType: fileType,
+      attachedToType: attachedToType,
+      attachedToId: projectId, // Link directly to the project
+      projectId: projectId,
+      uploaderId: user._id,
+      uploaderRole: user.role,
+      customName: customName || file.originalname,
+    } as any);
+
+    // Unlike the note-specific method, we don't need to update another model here.
+    return newAttachment;
+  }
+
   // --- FIX: This method is updated to use our s3Service and link the attachment ---
   async uploadAndLinkAttachment(
     file: Express.Multer.File,

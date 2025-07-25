@@ -27,6 +27,15 @@ router
     NoteController.getAllimagesOrDocumentOFnoteOrTaskOrProjectByDateAndProjectId
   );
 
+// UPLOAD PROJECT DOCUMENT  
+router.route('/upload-document').post(
+  auth('common'), // Allow both manager and supervisor to upload
+  upload.fields([
+    { name: 'attachments', maxCount: 1 },
+  ]),
+  ProjectController.uploadProjectDocument
+);
+
 // GET A SINGLE PROJECT BY ITS ID
 router
   .route('/:projectId')
@@ -50,6 +59,11 @@ router.route('/create').post(
   auth('projectManager'),
   ProjectController.createProject
 );
+
+// GET PROJECT ACTIVITY DATES
+router
+  .route('/:projectId/activity-dates')
+  .get(auth('common'), ProjectController.getProjectActivityDates);
 
 // SOFT DELETE A PROJECT
 router

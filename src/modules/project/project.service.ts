@@ -4,10 +4,15 @@ import { Project } from './project.model';
 import ApiError from '../../errors/ApiError';
 import { StatusCodes } from 'http-status-codes';
 import { Attachment } from '../attachments/attachment.model';
+import { Note } from '../note/note.model';
 
 export class ProjectService extends GenericService<typeof Project> {
   constructor() {
     super(Project);
+  }
+
+  async updateById(id: string, payload: any): Promise<any> {
+    return super.updateById(id, payload);
   }
 
   async getAllProjectsByManagerId(managerId: string) {
@@ -20,26 +25,48 @@ export class ProjectService extends GenericService<typeof Project> {
     return projects;
   }
 
-  async getAllimagesOrDocumentOFnoteOrTaskByProjectId(
-    projectId: string,
-    noteOrTaskOrProject: string,
-    imageOrDocument: string,
-    uploaderRole: string
-  ) {
-    if (!mongoose.Types.ObjectId.isValid(projectId)) {
-      throw new ApiError(StatusCodes.NOT_FOUND, 'Invalid projectId');
-    }
-    const attachments = await Attachment.find({
-      attachedToType: { $in: ['note', 'task', 'project'] },
-      projectId: projectId,
-      attachmentType: imageOrDocument,
-      uploaderRole: uploaderRole,
-    })
+async getProjectActivityDates(projectId: string): Promise<string[]> {
+  const notesWithDates = await Note.find({ projectId }).distinct('createdAt');
+  const attachmentsWithDates = await Attachment.find({ projectId }).distinct('createdAt');
+
+  const allDates = [...notesWithDates, ...attachmentsWithDates] as Date[];
+  
+  const uniqueDateStrings = [...new Set(allDates.map(date => date.toISOString().split('T')[0]))];
+  
+  return uniqueDateStrings;
+}
+
+async getAllimagesOrDocumentOFnoteOrTaskByProjectId(
+  projectId: string,
+  noteOrTaskOrProject: string,
+  imageOrDocument: string,
+  date?: string // Make the date parameter optional
+) {
+  if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'Invalid projectId');
+  }
+
+  // Start building the query
+  const query: any = {
+    attachedToType: { $in: ['note', 'task', 'project'] },
+    projectId: projectId,
+    attachmentType: imageOrDocument,
+  };
+
+  // ✨ If a date is provided, add it to the query ✨
+  if (date) {
+    const startDate = new Date(date);
+    startDate.setUTCHours(0, 0, 0, 0);
+    const endDate = new Date(date);
+    endDate.setUTCHours(23, 59, 59, 999);
+    query.createdAt = { $gte: startDate, $lte: endDate };
+  }
+
+    const attachments = await Attachment.find(query)
       .select(
         '-projectId -updatedAt -__v -attachedToId -note -_attachmentId -attachmentType'
       )
       .exec();
-
     const formatDate = (date: any) => {
       const options: Intl.DateTimeFormatOptions = {
         weekday: 'long',
