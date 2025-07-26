@@ -9,6 +9,7 @@ import { AttachedToType } from '../attachments/attachment.constant';
 import { CompanyService } from './company.service';
 import { Company } from './company.model';
 import { TUser } from '../user/user.interface';
+import { NotificationService } from '../notification/notification.services'; 
 
 const companyService = new CompanyService();
 
@@ -76,6 +77,18 @@ const updateById = catchAsync(async (req, res) => {
     req.params.contractId,
     req.body
   );
+
+  const user = req.user as TUser;
+  if (result && user?._id) {
+    const notificationPayload = {
+      title: `Company profile for '${result.name}' was updated.`,
+      receiverId: user._id, // Notify the user who made the change
+      notificationFor: 'company', // You can add an icon for this
+    };
+    await NotificationService.addNotification(notificationPayload as any);
+  }
+
+
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,

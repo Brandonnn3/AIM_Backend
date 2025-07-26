@@ -4,7 +4,6 @@ import { Notification } from './notification.model';
 import { User } from '../user/user.model';
 import { PaginateOptions, PaginateResult } from '../../types/paginate';
 import ApiError from '../../errors/ApiError';
-// FIX: Import the UploaderRole enum
 import { UploaderRole } from '../attachments/attachment.constant';
 import { io } from '../../server';
 
@@ -12,7 +11,6 @@ import { io } from '../../server';
 const addNotification = async (
   payload: INotification
 ): Promise<INotification> => {
-  // Save the notification to the database
   const result = await Notification.create(payload);
   return result;
 };
@@ -22,21 +20,39 @@ const getALLNotification = async (
   options: PaginateOptions,
   userId: string
 ) => {
-  filters.receiverId = userId;
-  const unViewNotificationCount = await Notification.countDocuments({
-    receiverId: userId,
-    viewStatus: false,
-  });
+  const query: Record<string, any> = { ...filters };
+  let unViewNotificationCount = 0;
 
-  const result = await Notification.paginate(filters, options);
+  if (userId) { 
+    query.receiverId = userId;
+    unViewNotificationCount = await Notification.countDocuments({
+      receiverId: userId,
+      viewStatus: false,
+    });
+  }
+
+  // We still pass the sortBy option as a fallback
+  options.sortBy = 'createdAt:desc';
+
+  const result = await Notification.paginate(query, options);
+
+  // ✨ FINAL FIX: Manually sort the results array by date to guarantee chronological order.
+  // This sorts from newest (b) to oldest (a).
+  result.results.sort((a, b) => {
+    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return dateB - dateA;
+  });
+  
   return { ...result, unViewNotificationCount };
 };
+
+// ... (rest of the file is unchanged)
 
 const getAdminNotifications = async (
   filters: Partial<INotification>,
   options: PaginateOptions
 ): Promise<PaginateResult<INotification>> => {
-  // FIX: Use the enum member directly instead of a string
   filters.role = UploaderRole.admin;
   return Notification.paginate(filters, options);
 };
@@ -59,7 +75,6 @@ const addCustomNotification = async (
   const messageEvent = `${eventName}::${userId}`;
   const result = await addNotification(notifications);
 
-  // FIX: Use the enum member directly instead of a string
   if (eventName === 'admin-notification' && notifications.role === UploaderRole.admin) {
     if (io) {
         io.emit('admin-notification', {

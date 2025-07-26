@@ -1,4 +1,4 @@
-// src/modules/note/note.controller.ts
+// AIM_Backend/src/modules/note/note.controller.ts
 
 import { RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
@@ -6,7 +6,6 @@ import { io } from '../../server';
 import { AttachedToType, UploaderRole } from '../attachments/attachment.constant';
 import { AttachmentService } from '../attachments/attachment.service';
 import ApiError from '../../errors/ApiError';
-import { FolderName } from '../../enums/folderNames';
 import { INotification } from '../notification/notification.interface';
 import { NotificationService } from '../notification/notification.services';
 import catchAsync from '../../shared/catchAsync';
@@ -21,69 +20,55 @@ import { Types } from 'mongoose';
 const noteService = new NoteService();
 const attachmentService = new AttachmentService();
 
+// --- NO CHANGES IN THIS FUNCTION ---
 const createNote: RequestHandler = catchAsync(async (req, res) => {
   const user = req.user as any;
-
   if (!user || !user._id) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not authenticated or user ID missing in token.');
   }
-
   const project = await Project.findById(req.body.projectId);
   if (!project) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Project not found');
   }
-
   const userId = user._id.toString();
   const projectManagerId = project.projectManagerId?.toString();
   const projectSupervisorId = project.projectSuperVisorId
     ? project.projectSuperVisorId.toString()
     : null;
-
   if (userId !== projectManagerId && userId !== projectSupervisorId) {
     throw new ApiError(
       StatusCodes.FORBIDDEN,
       'You are not authorized to add notes to this project.'
     );
   }
-
-  // --- FIX: Logic updated to align with the new attachment service ---
-  
-  // Step 1: Create the note first, without any attachments.
   const notePayload = { ...req.body };
   notePayload.createdBy = user._id;
   notePayload.isAccepted = noteStatus.pending;
   if (req.body.date) {
     notePayload.createdAt = new Date(req.body.date);
   }
-  delete notePayload.attachments; // Ensure attachments aren't in the initial payload
+  delete notePayload.attachments;
   const result = await noteService.create(notePayload);
-
-  // Step 2: If files were included, upload and link them to the new note.
   const files = req.files as { [fieldname: string]: Express.Multer.File[] };
   if (files && files.attachments) {
     await Promise.all(
       files.attachments.map(async (file: Express.Multer.File) => {
-        // Use the correct service method, passing the new note's ID
         return await attachmentService.uploadAndLinkAttachment(
           file,
           result.projectId,
-          result._id, // The new note's ID
+          result._id,
           user,
           AttachedToType.note
         );
       })
     );
   }
-
-  // --- Your existing notification logic remains the same ---
   const MAX_TITLE_LENGTH = 23;
   const truncatedTitle =
     result.title.length > MAX_TITLE_LENGTH
       ? result.title.substring(0, MAX_TITLE_LENGTH) + '...'
       : result.title;
-
   const creatorName = user.userName || user.fname || 'A user';
-  
   const notificationPayload: INotification = {
     title: `Note "${truncatedTitle}" created by ${creatorName}`,
     receiverId: project.projectManagerId,
@@ -93,9 +78,7 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
     projectId: project._id as Types.ObjectId,
     isDeleted: false,
   };
-
   const notification = await NotificationService.addNotification(notificationPayload);
-
   if (io && project.projectManagerId) {
     io.to(project.projectManagerId.toString()).emit('newNotification', {
       code: StatusCodes.OK,
@@ -103,7 +86,6 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
       data: notification,
     });
   }
-
   sendResponse(res, {
     code: StatusCodes.CREATED,
     data: result,
@@ -112,8 +94,7 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
   });
 });
 
-// --- All other original functions are preserved below ---
-
+// --- NO CHANGES IN THESE FUNCTIONS ---
 const getANote: RequestHandler = catchAsync(async (req, res) => {
     const result = await noteService.getById(req.params.noteId);
     sendResponse(res, {
@@ -123,7 +104,6 @@ const getANote: RequestHandler = catchAsync(async (req, res) => {
         success: true,
     });
 });
-
 const getAllNote: RequestHandler = catchAsync(async (req, res) => {
     const result = await noteService.getAll();
     sendResponse(res, {
@@ -133,7 +113,6 @@ const getAllNote: RequestHandler = catchAsync(async (req, res) => {
         success: true,
     });
 });
-
 const getAllNoteWithPagination: RequestHandler = catchAsync(async (req, res) => {
     const filters = pick(req.query, ['noteName', '_id']);
     const options = pick(req.query, ['sortBy', 'limit', 'page', 'populate']);
@@ -145,7 +124,6 @@ const getAllNoteWithPagination: RequestHandler = catchAsync(async (req, res) => 
         success: true,
     });
 });
-
 const updateById: RequestHandler = catchAsync(async (req, res) => {
     const result = await noteService.updateById(req.params.noteId, req.body);
     sendResponse(res, {
@@ -155,18 +133,14 @@ const updateById: RequestHandler = catchAsync(async (req, res) => {
         success: true,
     });
 });
-
 const deleteById: RequestHandler = catchAsync(async (req, res) => {
-    // Call the service method that handles deleting the note AND its files from storage
     await noteService.deleteNoteAndAttachments(req.params.noteId);
-    
     sendResponse(res, {
         code: StatusCodes.OK,
         message: 'Note and its attachments deleted successfully',
         success: true,
     });
 });
-
 const getAllByDateAndProjectId: RequestHandler = catchAsync(async (req, res) => {
     const { projectId, date } = req.query;
     let result;
@@ -183,7 +157,6 @@ const getAllByDateAndProjectId: RequestHandler = catchAsync(async (req, res) => 
         success: true,
     });
 });
-
 const getPreviewByDateAndProjectId: RequestHandler = catchAsync(async (req, res) => {
     const { projectId, date } = req.query;
     let result;
@@ -200,12 +173,8 @@ const getPreviewByDateAndProjectId: RequestHandler = catchAsync(async (req, res)
         success: true,
     });
 });
-
 const getAllimagesOrDocumentOFnoteOrTaskOrProjectByDateAndProjectId: RequestHandler = catchAsync(
     async (req, res) => {
-        
-        console.log('✅ Controller function reached. Query params:', req.query);
-
         const {
             projectId,
             date,
@@ -213,9 +182,6 @@ const getAllimagesOrDocumentOFnoteOrTaskOrProjectByDateAndProjectId: RequestHand
             imageOrDocument,
             uploaderRole,
         } = req.query;
-
-        // --- FIX: Remove the "if" check and call the service directly ---
-        // The service can now handle missing parameters.
         const result =
             await noteService.getAllimagesOrDocumentOFnoteOrTaskByDateAndProjectId(
                 projectId as string,
@@ -224,7 +190,6 @@ const getAllimagesOrDocumentOFnoteOrTaskOrProjectByDateAndProjectId: RequestHand
                 imageOrDocument as string,
                 uploaderRole as string
             );
-
         sendResponse(res, {
             code: StatusCodes.OK,
             data: result,
@@ -233,7 +198,6 @@ const getAllimagesOrDocumentOFnoteOrTaskOrProjectByDateAndProjectId: RequestHand
         });
     }
 );
-
 const changeStatusOfANote: RequestHandler = catchAsync(async (req, res) => {
     const result = await noteService.getById(req.params.noteId);
     if (result) {
@@ -254,22 +218,32 @@ const changeStatusOfANote: RequestHandler = catchAsync(async (req, res) => {
 
 const changeStatusOfANoteWithDeny: RequestHandler = catchAsync(async (req, res) => {
     const { status } = req.query;
-    if (!status) {
-        res.status(400).json({ error: 'Status is required' });
-        return;
+    if (!status || !Object.values(noteStatus).includes(status as noteStatus)) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'A valid status is required.');
     }
-    if (!Object.values(noteStatus).includes(status as noteStatus)) {
-        res.status(400).json({
-            error: `Invalid status value. it can be  ${Object.values(noteStatus).join(
-                ', '
-            )}`,
-        });
-        return;
-    }
+    
     const result = await noteService.getById(req.params.noteId);
     if (result) {
         result.isAccepted = status as noteStatus;
         await result.save();
+
+        // This block now creates the correct activity type
+        if (status === noteStatus.accepted) {
+            const project = await Project.findById(result.projectId);
+            if (project && project.projectManagerId) {
+                 const notificationPayload: INotification = {
+                    title: `Daily Log Approved: '${result.title}' was approved.`,
+                    receiverId: project.projectManagerId,
+                    // ✨ FIX: Use the 'log' type for approvals
+                    notificationFor: 'log', 
+                    projectId: result.projectId,
+                    linkId: result._id,
+                    role: 'projectManager' as any,
+                    isDeleted: false,
+                };
+                await NotificationService.addNotification(notificationPayload);
+            }
+        }
     }
     sendResponse(res, {
         code: StatusCodes.OK,

@@ -9,7 +9,6 @@ const notificationModel = new Schema<INotification>(
       type: String,
       required: [true, 'Title is required'],
     },
-
     receiverId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
@@ -20,13 +19,13 @@ const notificationModel = new Schema<INotification>(
       enum: Roles,
       required: true,
     },
-
     linkId: {
       type: String,
     },
     notificationFor: {
       type: String,
-      enum: ['project', 'task', 'note', 'attachment'],
+      // ✨ FIX: Add 'deadline' to the list of allowed values
+      enum: ['project', 'task', 'note', 'attachment', 'log', 'contract', 'company', 'assign', 'deadline'],
       required: [true, 'Notification for is required'],
     },
     projectId: {

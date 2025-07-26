@@ -8,11 +8,15 @@ import { notificationFilters } from './notification.constants';
 const getALLNotification = catchAsync(async (req, res) => {
   const filters = pick(req.query, notificationFilters);
   const options = pick(req.query, ['sortBy', 'limit', 'page', 'populate']);
-  const userId = req.user.userId;
+
+  // ✨ FIX: Comment out the userId to fetch all notifications for the feed.
+  // const userId = req.user.userId; 
+  
   const result = await NotificationService.getALLNotification(
     filters,
     options,
-    userId
+    // Pass an empty string or null instead of the userId
+    '' 
   );
   sendResponse(res, {
     code: StatusCodes.OK,

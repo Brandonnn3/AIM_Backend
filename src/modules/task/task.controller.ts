@@ -163,6 +163,19 @@ const changeStatusOfATask = catchAsync(async (req, res) => {
   task.task_status = TaskStatus.complete;
   await task.save();
 
+  if (project.projectManagerId) {
+    const notificationPayload: INotification = {
+      title: `Task Completed: '${task.title}' was marked as complete.`,
+      receiverId: project.projectManagerId,
+      notificationFor: 'task',
+      projectId: project._id as Types.ObjectId,
+      linkId: task._id,
+      role: 'projectManager' as any,
+      isDeleted: false,
+    };
+    await NotificationService.addNotification(notificationPayload);
+  }
+
   sendResponse(res, {
     code: StatusCodes.OK,
     data: task,

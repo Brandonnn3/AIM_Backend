@@ -25,42 +25,40 @@ export class ProjectService extends GenericService<typeof Project> {
     return projects;
   }
 
-async getProjectActivityDates(projectId: string): Promise<string[]> {
-  const notesWithDates = await Note.find({ projectId }).distinct('createdAt');
-  const attachmentsWithDates = await Attachment.find({ projectId }).distinct('createdAt');
+  async getProjectActivityDates(projectId: string): Promise<string[]> {
+    const notesWithDates = await Note.find({ projectId }).distinct('createdAt');
+    const attachmentsWithDates = await Attachment.find({ projectId }).distinct('createdAt');
 
-  const allDates = [...notesWithDates, ...attachmentsWithDates] as Date[];
-  
-  const uniqueDateStrings = [...new Set(allDates.map(date => date.toISOString().split('T')[0]))];
-  
-  return uniqueDateStrings;
-}
-
-async getAllimagesOrDocumentOFnoteOrTaskByProjectId(
-  projectId: string,
-  noteOrTaskOrProject: string,
-  imageOrDocument: string,
-  date?: string // Make the date parameter optional
-) {
-  if (!mongoose.Types.ObjectId.isValid(projectId)) {
-    throw new ApiError(StatusCodes.NOT_FOUND, 'Invalid projectId');
+    const allDates = [...notesWithDates, ...attachmentsWithDates] as Date[];
+    
+    const uniqueDateStrings = [...new Set(allDates.map(date => date.toISOString().split('T')[0]))];
+    
+    return uniqueDateStrings;
   }
 
-  // Start building the query
-  const query: any = {
-    attachedToType: { $in: ['note', 'task', 'project'] },
-    projectId: projectId,
-    attachmentType: imageOrDocument,
-  };
+  async getAllimagesOrDocumentOFnoteOrTaskByProjectId(
+    projectId: string,
+    noteOrTaskOrProject: string,
+    imageOrDocument: string,
+    date?: string
+  ) {
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      throw new ApiError(StatusCodes.NOT_FOUND, 'Invalid projectId');
+    }
 
-  // ✨ If a date is provided, add it to the query ✨
-  if (date) {
-    const startDate = new Date(date);
-    startDate.setUTCHours(0, 0, 0, 0);
-    const endDate = new Date(date);
-    endDate.setUTCHours(23, 59, 59, 999);
-    query.createdAt = { $gte: startDate, $lte: endDate };
-  }
+    const query: any = {
+      attachedToType: { $in: ['note', 'task', 'project'] },
+      projectId: projectId,
+      attachmentType: imageOrDocument,
+    };
+
+    if (date) {
+      const startDate = new Date(date);
+      startDate.setUTCHours(0, 0, 0, 0);
+      const endDate = new Date(date);
+      endDate.setUTCHours(23, 59, 59, 999);
+      query.createdAt = { $gte: startDate, $lte: endDate };
+    }
 
     const attachments = await Attachment.find(query)
       .select(
@@ -92,5 +90,30 @@ async getAllimagesOrDocumentOFnoteOrTaskByProjectId(
     }));
 
     return result;
+  }
+
+  // ✨ ADD THIS ENTIRE NEW METHOD ✨
+  /**
+   * Finds all active projects with an end date between today and 7 days from now.
+   * returns A promise that resolves to an array of projects.
+   */
+  async findProjectsNearingDeadline() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today
+
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(today.getDate() + 7);
+    sevenDaysFromNow.setHours(23, 59, 59, 999); // End of the 7th day
+
+    // Find projects where the end date is within our 7-day window
+    const projects = await this.model.find({
+      isDeleted: false,
+      endDate: {
+        $gte: today,
+        $lte: sevenDaysFromNow,
+      },
+    }).select('projectName endDate projectManagerId'); // Select only the fields we need
+
+    return projects;
   }
 }

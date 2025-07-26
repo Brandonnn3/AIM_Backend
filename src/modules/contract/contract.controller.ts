@@ -1,5 +1,3 @@
-// AIM_Backend/src/modules/contract/contract.controller.ts
-
 import catchAsync from '../../shared/catchAsync';
 import sendResponse from '../../shared/sendResponse';
 import { StatusCodes } from 'http-status-codes';
@@ -7,8 +5,11 @@ import pick from '../../shared/pick';
 import { ContractService } from './contract.service';
 import ApiError from '../../errors/ApiError';
 import { AttachmentService } from '../attachments/attachment.service';
-import { AttachedToType } from '../attachments/attachment.constant';
 import { TUser } from '../user/user.interface';
+import { NotificationService } from '../notification/notification.services';
+import { Project } from '../project/project.model';
+import { Types } from 'mongoose';
+import { INotification } from '../notification/notification.interface';
 
 const contractService = new ContractService();
 const attachmentService = new AttachmentService();
@@ -32,41 +33,34 @@ const createContract = catchAsync(async (req, res) => {
     );
   }
 
-  // The 'createdBy' and 'creatorRole' are now set on the contract itself,
-  // not passed to the attachment service.
-  if (user._id) { // Use user._id which is more conventional
+  if (user._id) {
     req.body.createdBy = user._id;
     req.body.creatorRole = user.role;
   }
 
   let attachments: string[] = [];
   
-  // ===================== ✨ THIS BLOCK IS THE FIX ✨ =====================
   if (files && files.attachments) {
     attachments = await Promise.all(
       files.attachments.map(async (file: Express.Multer.File) => {
-        // 1. Call the correct method: 'uploadAndCreateAttachment'
         const newAttachment = await attachmentService.uploadAndCreateAttachment(
           file,
-          { // 2. Pass parameters as a metadata object
+          {
             projectId: req.body.projectId,
             user,
-            attachedToType: 'contract', // Set type to 'contract'
+            attachedToType: 'contract',
             customName: file.originalname,
           }
         );
-        // 3. Return the ID from the created attachment object
         return newAttachment._id.toString();
       })
     );
   }
-  // ======================================================================
  
   req.body.attachments = attachments;
 
   const result = await contractService.create(req.body);
 
-  // This part correctly links the attachment back to the newly created contract
   if (attachments.length > 0) {
     await Promise.all(
       attachments.map(async (attachmentId: string) => {
@@ -80,15 +74,32 @@ const createContract = catchAsync(async (req, res) => {
     );
   }
   
+  // ✨ ADD THIS BLOCK TO CREATE AN ACTIVITY RECORD ✨
+  const project = await Project.findById(req.body.projectId).select('projectName projectManagerId');
+  if (project && project.projectManagerId) {
+    const uploaderName = user.fname ? `${user.fname} ${user.lname}` : 'A manager';
+    const notificationPayload: INotification = {
+      title: `New Contract uploaded for '${project.projectName}' by ${uploaderName}.`,
+      receiverId: project.projectManagerId,
+      notificationFor: 'contract',
+      projectId: project._id as Types.ObjectId,
+      linkId: result._id,
+      role: 'projectManager' as any,
+      isDeleted: false,
+    };
+    await NotificationService.addNotification(notificationPayload);
+  }
+  // ✨ END OF BLOCK ✨
+
   sendResponse(res, {
-    code: StatusCodes.CREATED, // Use 201 for resource creation
+    code: StatusCodes.CREATED,
     data: result,
     message: 'Contract created successfully',
     success: true,
   });
 });
 
-// --- NO CHANGES NEEDED BELOW THIS LINE ---
+// --- NO CHANGES TO OTHER FUNCTIONS ---
 
 const getAContract = catchAsync(async (req, res) => {
   const result = await contractService.getById(req.params.contractId);
@@ -123,28 +134,24 @@ const getAllContractWithPagination = catchAsync(async (req, res) => {
 
   const result = await contractService.getAllWithPagination(filters, options);
 
-  const formatDate = (date: any) => {
-    const options: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    return new Date(date).toLocaleDateString('en-US', options);
-  };
-
-  const groupedByDate = result.results.reduce((acc: any, attachment: any) => {
-    const dateKey = formatDate(attachment.createdAt);
+  const groupedByDate = result.results.reduce((acc: any, contract: any) => {
+    const dateKey = new Date(contract.createdAt).toISOString().split('T')[0];
+    
     if (!acc[dateKey]) {
       acc[dateKey] = [];
     }
-    acc[dateKey].push(attachment);
+    acc[dateKey].push(contract);
     return acc;
   }, {});
 
-  const result1 = Object.keys(groupedByDate).map((date: any) => ({
+  const finalResult = Object.keys(groupedByDate).map((date: string) => ({
     date: date,
     attachments: groupedByDate[date]
   }));
 
   sendResponse(res, {
     code: StatusCodes.OK,
-    data: result1,
+    data: finalResult,
     message: 'All Contracts with Pagination',
     success: true,
   });
