@@ -43,6 +43,19 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads/')));
 // Use i18next middleware
 app.use(i18nextMiddleware.handle(i18next));
 
+
+// =================================================================
+// ✨ ADD THIS TEMPORARY DEBUGGING BLOCK
+// =================================================================
+app.use('/api/v1', (req, res, next) => {
+  if (req.method === 'PUT' || req.method === 'POST') {
+    console.log(`[DEBUG] Received ${req.method} request for ${req.originalUrl}`);
+    console.log('[DEBUG] Request Headers:', req.headers);
+  }
+  next();
+});
+// =================================================================
+
 // router
 app.use('/api/v1', router);
 

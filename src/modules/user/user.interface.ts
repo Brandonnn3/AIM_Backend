@@ -1,20 +1,14 @@
 import { Document, Model, Types } from 'mongoose';
 import { Role } from '../../middlewares/roles';
-import { IMaritalStatus, TGender, TUserStatus } from './user.constant';
 import { PaginateOptions, PaginateResult } from '../../types/paginate';
 
 export type TProfileImage = {
   imageUrl: string;
 };
 
-export type TPhotoGallery = {
-  imageUrl: string;
-  file: Record<string, any>;
-};
-
-export type TUser = {
-  _userId: undefined | Types.ObjectId;
-  _id:  undefined; 
+// ✨ FIX: Changed TUser to be an interface that extends Mongoose's Document.
+// This ensures that properties like _id are correctly typed and available.
+export interface TUser extends Document {
   fname: string;
   lname: string;
   email: string;
@@ -24,10 +18,7 @@ export type TUser = {
   address: string;
   companyName : string;
   role: Role;
-  
-  // ADDED THIS LINE to match the logic in auth.service.ts
   companyId?: Types.ObjectId | null; 
-  
   superVisorsManagerId?: Types.ObjectId | null;
   isEmailVerified: boolean;
   phoneNumber : string;
@@ -39,7 +30,7 @@ export type TUser = {
   lockUntil: Date | undefined;
   createdAt: Date;
   updatedAt: Date;
-};
+}
 
 export interface UserModal extends Model<TUser> {
   paginate: (

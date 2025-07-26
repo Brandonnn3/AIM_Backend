@@ -29,12 +29,26 @@ router
 
 // UPLOAD PROJECT DOCUMENT  
 router.route('/upload-document').post(
-  auth('common'), // Allow both manager and supervisor to upload
+  auth('common'),
   upload.fields([
     { name: 'attachments', maxCount: 1 },
   ]),
   ProjectController.uploadProjectDocument
 );
+
+// ✨ =================================================================
+// ✨ NEW ROUTES FOR SUPERVISOR ASSIGNMENT
+// ✨ =================================================================
+// GET all supervisors that can be assigned to a specific project
+router
+    .route('/:projectId/assignable-supervisors')
+    .get(auth('projectManager'), ProjectController.getAssignableSupervisors);
+
+// PUT (update) the list of assigned supervisors for a project
+router
+    .route('/:projectId/assign-supervisors')
+    .put(auth('projectManager'), ProjectController.assignSupervisorsToProject);
+
 
 // GET A SINGLE PROJECT BY ITS ID
 router

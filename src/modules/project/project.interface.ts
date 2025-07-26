@@ -6,7 +6,7 @@ export interface IProject extends Document {
   pid: string;
   projectName: string;
   projectLogo?: string;
-  projectSuperVisorId?: Types.ObjectId;
+  projectSuperVisorIds?: Types.ObjectId[]; 
   projectManagerId: Types.ObjectId;
   streetAddress?: string;
   city?: string;

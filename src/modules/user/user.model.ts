@@ -3,10 +3,8 @@ import { TProfileImage, TUser, UserModal } from './user.interface';
 import paginate from '../../common/plugins/paginate';
 import bcrypt from 'bcrypt';
 import { config } from '../../config';
-import { Gender, MaritalStatus, UserStatus } from './user.constant';
 import { Roles } from '../../middlewares/roles';
 
-// Profile Image Schema
 const profileImageSchema = new Schema<TProfileImage>({
   imageUrl: {
     type: String,
@@ -15,7 +13,6 @@ const profileImageSchema = new Schema<TProfileImage>({
   },
 });
 
-// User Schema Definition
 const userSchema = new Schema<TUser, UserModal>(
   {
     fname: {
@@ -49,14 +46,11 @@ const userSchema = new Schema<TUser, UserModal>(
       required: false,
       default: { imageUrl: '/uploads/users/user.png' },
     },
-
-    fcmToken: { type: String, default: null }, // Store Firebase Token
-
+    fcmToken: { type: String, default: null },
     address: {
       type: String,
       required: [false, 'Street Address is not required'],
     },
-
     companyName: { type: String },
     role: {
       type: String,
@@ -65,6 +59,12 @@ const userSchema = new Schema<TUser, UserModal>(
         message: '{VALUE} is not a valid role',
       },
       required: [true, 'Role is required'],
+    },
+    // ✨ FIX: Added the missing companyId field to the schema
+    companyId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Company',
+      required: false, // Set to false as it might be added later
     },
     superVisorsManagerId: {
       type: Schema.Types.ObjectId,
@@ -82,7 +82,6 @@ const userSchema = new Schema<TUser, UserModal>(
       type: Boolean,
       default: false,
     },
-
     lastPasswordChange: { type: Date },
     isResetPassword: {
       type: Boolean,
@@ -92,7 +91,6 @@ const userSchema = new Schema<TUser, UserModal>(
       type: Boolean,
       default: false,
     },
-    
     failedLoginAttempts: {
       type: Number,
       default: 0,
@@ -106,10 +104,8 @@ const userSchema = new Schema<TUser, UserModal>(
   }
 );
 
-// Apply the paginate plugin
 userSchema.plugin(paginate);
 
-// Static methods
 userSchema.statics.isExistUserById = async function (id: string) {
   return await this.findById(id);
 };
@@ -125,11 +121,8 @@ userSchema.statics.isMatchPassword = async function (
   return await bcrypt.compare(password, hashPassword);
 };
 
-
-// Middleware to hash password before saving
 userSchema.pre('save', async function (next) {
   if (this.isModified('password')) {
-    // --- CRITICAL FIX: Corrected the config variable name ---
     this.password = await bcrypt.hash(
       this.password,
       Number(config.bcrypt.saltRounds)
@@ -138,16 +131,13 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
-
-// Use transform to rename _id to _userId
 userSchema.set('toJSON', {
   transform: function (doc: any, ret: any, options: any) {
-    ret.id = ret._id; // Create a new 'id' field
-    delete ret._id;   // Delete the original _id
-    delete ret.__v;  // Delete the __v
+    ret.id = ret._id;
+    delete ret._id;
+    delete ret.__v;
     return ret;
   },
 });
 
-// Export the User model
 export const User = model<TUser, UserModal>('User', userSchema);

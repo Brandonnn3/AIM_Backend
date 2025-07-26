@@ -18,7 +18,6 @@ const getExpirationTime = (expiration: string) => {
 };
 
 const createToken = (payload: object, secret: Secret, expireTime: string) => {
-  // Final fix: Use 'as any' to bypass the stubborn type-checking error.
   return jwt.sign(payload, secret, { expiresIn: expireTime } as any);
 };
 
@@ -93,8 +92,16 @@ const createResetPasswordToken = async (user: TUser) => {
 };
 
 const accessAndRefreshToken = async (user: Partial<TUser>) => {
-  const userFullname = user.fname + ' ' + user.lname;
-  const payload = { userId: user._id, userName: userFullname, email: user.email, role: user.role };
+  const userFullname = `${user.fname || ''} ${user.lname || ''}`.trim();
+  
+  // ✨ FIX: This payload will now correctly receive the companyId from the plain user object
+  const payload = { 
+    userId: user._id, 
+    userName: userFullname, 
+    email: user.email, 
+    role: user.role,
+    companyId: user.companyId
+  };
   
   const accessToken = createToken(
     payload,
@@ -125,7 +132,14 @@ const accessAndRefreshToken = async (user: Partial<TUser>) => {
 
 const accessAndRefreshTokenForRefreshToken = async (user: any) => {
   const userFullname = user.userName;
-  const payload = { userId: user.userId, userName: userFullname, email: user.email, role: user.role };
+  
+  const payload = { 
+    userId: user.userId, 
+    userName: userFullname, 
+    email: user.email, 
+    role: user.role,
+    companyId: user.companyId 
+  };
 
   const accessToken = createToken(
     payload,

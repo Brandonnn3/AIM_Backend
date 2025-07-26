@@ -18,10 +18,11 @@ const projectSchema = new Schema<IProject>(
       type: String,
       required: [false, 'Project logo is required'],
     },
-    projectSuperVisorId: {
-      type: Schema.Types.ObjectId,
+    // ✨ FIX: Changed from a single ID to an array of IDs
+    projectSuperVisorIds: {
+      type: [Schema.Types.ObjectId],
       ref: 'User',
-      required: [false, 'ProjectSuperVisorId is not required'],
+      required: [false, 'ProjectSuperVisorIds are not required'],
     },
     projectManagerId: {
       type: Schema.Types.ObjectId,

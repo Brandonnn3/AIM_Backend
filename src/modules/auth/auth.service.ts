@@ -15,6 +15,7 @@ import { Secret } from 'jsonwebtoken';
 import { UserCompany } from '../userCompany/userCompany.model';
 import { Company } from '../company/company.model';
 
+// ... (createUser and validateUserStatus functions are unchanged)
 const validateUserStatus = (user: TUser) => {
   if (user.isDeleted) {
     throw new ApiError(
@@ -81,8 +82,10 @@ const createUser = async (userData: TUser) => {
   return { otp, user, verificationToken };
 };
 
+
 const login = async (email: string, reqpassword: string, fcmToken: string) => {
-  const user = await User.findOne({ email }).select('+password');
+  // 1. Fetch the user with all necessary fields for the token.
+  const user = await User.findOne({ email }).select('+password fname lname role companyId');
   if (!user) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid credentials');
   }
@@ -127,14 +130,18 @@ const login = async (email: string, reqpassword: string, fcmToken: string) => {
 
   const userCompany = await UserCompany.findOne({ userId: user._id });
 
-  const tokens = await TokenService.accessAndRefreshToken(user);
+  // ✨ FIX: Convert the Mongoose document to a plain JavaScript object.
+  // This ensures all properties, including virtuals and selected fields, are present.
+  const userObject = user.toObject();
+  const tokens = await TokenService.accessAndRefreshToken(userObject);
 
   if (fcmToken) {
     user.fcmToken = fcmToken;
     await user.save();
   }
 
-  const { password, ...userWithoutPassword } = user.toObject();
+  // The user object returned to the app will now be complete.
+  const { password, ...userWithoutPassword } = userObject;
 
   return {
     userWithoutPassword,

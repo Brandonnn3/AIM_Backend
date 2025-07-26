@@ -21,7 +21,8 @@ export class ProjectService extends GenericService<typeof Project> {
     }
     const projects = await this.model
       .find({ projectManagerId: managerId })
-      .populate('projectSuperVisorId', 'fname lname email profileImage');
+      // ✨ FIX: Changed 'projectSuperVisorId' to the new plural 'projectSuperVisorIds'
+      .populate('projectSuperVisorIds', 'fname lname email profileImage');
     return projects;
   }
 
@@ -92,27 +93,21 @@ export class ProjectService extends GenericService<typeof Project> {
     return result;
   }
 
-  // ✨ ADD THIS ENTIRE NEW METHOD ✨
-  /**
-   * Finds all active projects with an end date between today and 7 days from now.
-   * returns A promise that resolves to an array of projects.
-   */
   async findProjectsNearingDeadline() {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of today
+    today.setHours(0, 0, 0, 0);
 
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(today.getDate() + 7);
-    sevenDaysFromNow.setHours(23, 59, 59, 999); // End of the 7th day
+    sevenDaysFromNow.setHours(23, 59, 59, 999);
 
-    // Find projects where the end date is within our 7-day window
     const projects = await this.model.find({
       isDeleted: false,
       endDate: {
         $gte: today,
         $lte: sevenDaysFromNow,
       },
-    }).select('projectName endDate projectManagerId'); // Select only the fields we need
+    }).select('projectName endDate projectManagerId');
 
     return projects;
   }
