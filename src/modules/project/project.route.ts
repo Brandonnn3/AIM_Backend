@@ -14,6 +14,11 @@ router
   .route('/manager/all')
   .get(auth('projectManager'), ProjectController.getAllProjectsByManager);
 
+// GET ALL PROJECTS FOR THE LOGGED-IN SUPERVISOR
+router
+  .route('/supervisor/all')
+  .get(auth('projectSupervisor'), ProjectController.getAllProjectsBySupervisor);
+
 // GET ALL PROJECTS WITH PAGINATION (FOR ADMINS/OTHER ROLES)
 router
   .route('/paginate')

@@ -281,6 +281,13 @@ const getAllProjectsByManager: RequestHandler = catchAsync(async (req, res) => {
   sendResponse(res, { code: StatusCodes.OK, data: result, message: 'Manager projects retrieved successfully', success: true });
 });
 
+const getAllProjectsBySupervisor: RequestHandler = catchAsync(async (req, res) => {
+  const user = req.user as TUser;
+  if (!user || !user._id) { throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not found or invalid token'); }
+  const result = await projectService.getAllProjectsBySupervisorId(user._id.toString());
+  sendResponse(res, { code: StatusCodes.OK, data: result, message: 'Supervisor projects retrieved successfully', success: true });
+});
+
 const getAllProjectWithPagination: RequestHandler = catchAsync(async (req, res) => {
   const user = req.user as any;
   if (!user || !user._id) { throw new ApiError(StatusCodes.UNAUTHORIZED, 'User information is missing'); }
@@ -320,4 +327,5 @@ export const ProjectController = {
     getProjectActivityDates,
     getAssignableSupervisors,
     assignSupervisorsToProject,
+    getAllProjectsBySupervisor, 
 };

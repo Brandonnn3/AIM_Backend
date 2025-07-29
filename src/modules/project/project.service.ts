@@ -5,6 +5,7 @@ import ApiError from '../../errors/ApiError';
 import { StatusCodes } from 'http-status-codes';
 import { Attachment } from '../attachments/attachment.model';
 import { Note } from '../note/note.model';
+import { Task } from '../task/task.model';
 
 export class ProjectService extends GenericService<typeof Project> {
   constructor() {
@@ -19,10 +20,77 @@ export class ProjectService extends GenericService<typeof Project> {
     if (!mongoose.Types.ObjectId.isValid(managerId)) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid manager ID');
     }
-    const projects = await this.model
-      .find({ projectManagerId: managerId })
-      // ✨ FIX: Changed 'projectSuperVisorId' to the new plural 'projectSuperVisorIds'
-      .populate('projectSuperVisorIds', 'fname lname email profileImage');
+
+    const projects = await this.model.aggregate([
+      { $match: { projectManagerId: new mongoose.Types.ObjectId(managerId), isDeleted: false } },
+      {
+        $lookup: {
+          from: 'tasks', // The name of the tasks collection in MongoDB
+          let: { projectId: '$_id' },
+          pipeline: [
+            { 
+              $match: { 
+                $expr: { $eq: ['$projectId', '$$projectId'] },
+                task_status: 'open' // Only count tasks with 'open' status
+              } 
+            },
+            { $count: 'total' }
+          ],
+          as: 'openTasks'
+        }
+      },
+      {
+        $addFields: {
+          openTasksCount: { $ifNull: [{ $arrayElemAt: ['$openTasks.total', 0] }, 0] }
+        }
+      },
+      { $project: { openTasks: 0 } } // Clean up the temporary field
+    ]);
+
+    // We need to populate supervisor details separately after aggregation
+    await Project.populate(projects, { path: 'projectSuperVisorIds', select: 'fname lname email profileImage' });
+    
+    return projects;
+  }
+
+  async getAllProjectsBySupervisorId(supervisorId: string) {
+    if (!mongoose.Types.ObjectId.isValid(supervisorId)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid supervisor ID');
+    }
+    
+    const projects = await this.model.aggregate([
+      { 
+        $match: { 
+          projectSuperVisorIds: new mongoose.Types.ObjectId(supervisorId), 
+          isDeleted: false 
+        } 
+      },
+      {
+        $lookup: {
+          from: 'tasks',
+          let: { projectId: '$_id' },
+          pipeline: [
+            { 
+              $match: { 
+                $expr: { $eq: ['$projectId', '$$projectId'] },
+                task_status: 'open'
+              } 
+            },
+            { $count: 'total' }
+          ],
+          as: 'openTasks'
+        }
+      },
+      {
+        $addFields: {
+          openTasksCount: { $ifNull: [{ $arrayElemAt: ['$openTasks.total', 0] }, 0] }
+        }
+      },
+      { $project: { openTasks: 0 } }
+    ]);
+
+    await Project.populate(projects, { path: 'projectSuperVisorIds', select: 'fname lname email profileImage' });
+
     return projects;
   }
 
