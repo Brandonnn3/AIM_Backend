@@ -84,8 +84,8 @@ const createUser = async (userData: TUser) => {
 
 
 const login = async (email: string, reqpassword: string, fcmToken: string) => {
-  // 1. Fetch the user with all necessary fields for the token.
-  const user = await User.findOne({ email }).select('+password fname lname role companyId');
+  const user = await User.findOne({ email }).select('+password fname lname role companyId isPasswordTemporary');
+  
   if (!user) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid credentials');
   }
