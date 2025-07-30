@@ -4,9 +4,7 @@ import { GenericService } from '../Generic Service/generic.services';
 import { Attachment } from './attachment.model';
 import { AttachmentType } from './attachment.constant';
 import { TUser } from '../user/user.interface';
-import { Note } from '../note/note.model'; // Import the Note model
-
-// --- FIX: Import our centralized, MinIO-aware uploader ---
+import { Note } from '../note/note.model';
 import { uploadFile, deleteFile } from '../../services/s3Service';
 
 export class AttachmentService extends GenericService<typeof Attachment> {
@@ -14,7 +12,42 @@ export class AttachmentService extends GenericService<typeof Attachment> {
     super(Attachment);
   }
 
-  // ✨ ADD THIS ENTIRE NEW METHOD ✨
+  // ✨ NEW: The missing function to handle single file uploads like profile pictures.
+  async uploadSingleAttachment(
+    file: Express.Multer.File,
+    folderName: string, // e.g., 'user'
+    user: TUser,
+    attachedToType: string
+  ) {
+    // For profile pictures, we don't have a projectId, so we can use the userId instead
+    // to create a unique path.
+    const pathId = (user._id as any).toString(); 
+
+    const uploadedFileUrl = await uploadFile({
+      fileBuffer: file.buffer,
+      // We use a generic companyId or the user's companyId if available
+      companyId: (user as any).companyId || 'aim-construction', 
+      projectId: pathId, // Using userId for uniqueness
+      originalname: file.originalname,
+    });
+
+    let fileType = file.mimetype.startsWith('image/')
+      ? AttachmentType.image
+      : AttachmentType.document;
+
+    // Create the attachment record without linking to a project or note
+    const newAttachment = await this.create({
+      attachment: uploadedFileUrl,
+      attachmentType: fileType,
+      attachedToType: attachedToType,
+      attachedToId: user._id, // The attachment is linked to the user themselves
+      uploaderId: user._id,
+      uploaderRole: user.role,
+    } as any);
+
+    return newAttachment;
+  }
+
   async uploadAndCreateAttachment(
     file: Express.Multer.File,
     metadata: {
@@ -22,7 +55,6 @@ export class AttachmentService extends GenericService<typeof Attachment> {
       user: TUser;
       attachedToType: string;
       customName?: string;
-      // This method does not require a noteId
     }
   ) {
     const { projectId, user, attachedToType, customName } = metadata;
@@ -42,29 +74,26 @@ export class AttachmentService extends GenericService<typeof Attachment> {
       attachment: uploadedFileUrl,
       attachmentType: fileType,
       attachedToType: attachedToType,
-      attachedToId: projectId, // Link directly to the project
+      attachedToId: projectId,
       projectId: projectId,
       uploaderId: user._id,
       uploaderRole: user.role,
       customName: customName || file.originalname,
     } as any);
 
-    // Unlike the note-specific method, we don't need to update another model here.
     return newAttachment;
   }
 
-  // --- FIX: This method is updated to use our s3Service and link the attachment ---
   async uploadAndLinkAttachment(
     file: Express.Multer.File,
     projectId: string,
-    noteId: string, // We now require the noteId to link the attachment
+    noteId: string,
     user: TUser,
     attachedToType: string
   ) {
-    // Step 1: Upload the file using our centralized service (handles MinIO vs AWS)
     const uploadedFileUrl = await uploadFile({
       fileBuffer: file.buffer,
-      companyId: (user as any).companyId || 'aim-construction', // Using a placeholder as before
+      companyId: (user as any).companyId || 'aim-construction',
       projectId: projectId,
       originalname: file.originalname,
     });
@@ -76,18 +105,16 @@ export class AttachmentService extends GenericService<typeof Attachment> {
       fileType = AttachmentType.document;
     }
 
-    // Step 2: Create the attachment record in the database
     const newAttachment = await this.create({
       attachment: uploadedFileUrl,
       attachmentType: fileType,
       attachedToType: attachedToType,
-      attachedToId: noteId, // Store the link to the note
+      attachedToId: noteId,
       projectId: projectId,
-      uploaderId: user._id, // Assuming user._id is the correct field
+      uploaderId: user._id,
       uploaderRole: user.role,
     } as any);
 
-    // Step 3: Add the new attachment's ID to the note's attachments array
     await Note.findByIdAndUpdate(noteId, {
       $push: { attachments: newAttachment._id },
     });
@@ -95,19 +122,14 @@ export class AttachmentService extends GenericService<typeof Attachment> {
     return newAttachment;
   }
 
-  // Your original deleteAttachment method (can be updated later to use s3Service)
   async deleteAttachment(fileUrl: string) {
     try {
-      // Call the centralized deleteFile function from our s3Service
       await deleteFile(fileUrl);
     } catch (error) {
       console.error('Error during file deletion:', error);
-      // We don't throw an error here to prevent the note deletion from failing
-      // if the file is already gone.
     }
   }
 
-  // Your original addOrRemoveReact method (unchanged)
   async addOrRemoveReact(attachmentId: string, userId: string) {
     const attachment = await this.getById(attachmentId);
     if (!attachment) {

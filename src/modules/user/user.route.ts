@@ -21,16 +21,12 @@ router.route('/invite-supervisors').post(
   UserController.inviteSupervisors,
 );
 
-// NEW ROUTE: To cancel a pending invitation (deletes the user)
-// The :id parameter will be the supervisor's user ID.
 router.delete(
     '/invites/:id',
     auth('projectManager'),
     UserController.cancelSupervisorInvitation
 );
 
-// NEW ROUTE: To remove an active supervisor from a company
-// The :id parameter will be the supervisor's user ID.
 router.delete(
     '/company/supervisors/:id',
     auth('projectManager'),
@@ -70,9 +66,10 @@ router
     UserController.updateProfileImage
   );
 
+// ✨ FIX: Changed the method from .patch() to .put() to match the frontend API call.
 router
-  .route('/update-profile')
-  .patch(
+  .route('/update-profile/:userId')
+  .put(
     auth('common'),
     [upload.single('profileImage')],
     UserController.updateProfile

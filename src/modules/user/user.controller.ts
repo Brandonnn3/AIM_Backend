@@ -208,28 +208,31 @@ const getSingleUser = catchAsync(async (req, res) => {
 });
 
 const updateProfile = catchAsync(async (req, res) => {
-  const userId = (req.user as TUser)._id;
+  const { userId } = req.params;
+  
   if (!userId) {
-    throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'User ID is required.');
   }
+
   if (req.file) {
     const attachmentResult = await attachmentService.uploadSingleAttachment(
       req.file,
       FolderName.user,
-      null,
       req.user as TUser,
-      AttachedToType.project
+      'user' // ✨ FIX: Use the string 'user' directly.
     );
 
     req.body.profileImage = {
       imageUrl: attachmentResult.attachment,
     };
   }
-  const result = await UserService.updateMyProfile((userId as any).toString(), req.body);
+
+  const result = await UserService.updateMyProfile(userId, req.body);
+  
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
-    message: 'Profile image updated successfully',
+    message: 'Profile updated successfully',
   });
 });
 
@@ -239,12 +242,12 @@ const updateProfileImage = catchAsync(async (req, res) => {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
   }
   if (req.file) {
+    // ✨ FIX: Removed the extra 'null' argument to match the function definition.
     const attachmentResult = await attachmentService.uploadSingleAttachment(
       req.file,
       FolderName.user,
-      null,
       req.user as TUser,
-      AttachedToType.project
+      'user' // ✨ FIX: Use the string 'user' directly.
     );
 
     req.body.profileImage = {

@@ -1,4 +1,4 @@
-import { model, Schema, Document } from 'mongoose'; // Corrected import
+import { model, Schema, Document } from 'mongoose'; 
 import paginate from '../../common/plugins/paginate';
 import { IAttachment, IAttachmentModel } from './attachment.interface';
 import {
@@ -23,11 +23,13 @@ const attachmentSchema = new Schema<IAttachment>(
       required: [false, 'AttachedToId is required.'],
     },
     attachedToType: {
+
       enum: [
         AttachedToType.note,
         AttachedToType.task,
         AttachedToType.project,
         AttachedToType.contract,
+        'user', 
       ],
       type: String,
       required: [false, 'AttachedToType is required. It can be note / task'],
@@ -58,7 +60,6 @@ const attachmentSchema = new Schema<IAttachment>(
 
 attachmentSchema.plugin(paginate);
 
-// FIX: Add types to the transform function parameters
 attachmentSchema.set('toJSON', {
   transform: function (doc: any, ret: any, options: any) {
     ret.id = ret._id; // Create a new 'id' field
