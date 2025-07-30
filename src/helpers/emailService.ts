@@ -8,7 +8,7 @@ import { config } from '../config';
 const transporter = nodemailer.createTransport({
   host: config.smtp.host,
   port: Number(config.smtp.port),
-  secure: false, // true for 465, false for other ports
+  secure: false,
   auth: {
     user: config.smtp.username,
     pass: config.smtp.password,
@@ -27,14 +27,83 @@ if (config.environment !== 'test') {
     );
 }
 
+// ✨ REVISED: A more robust template to match the desired design.
+const createStyledEmailTemplate = (
+  title: string,
+  body: string
+): string => {
+  const logoUrl = 'https://i.ibb.co/RpMRDQFW/AIM-20-20-Transparent-20-PNG-20-white.png';
+
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;700&display=swap');
+        body { margin: 0; padding: 0; font-family: 'Figtree', Arial, sans-serif; background-color: #ffffff; }
+        .wrapper { width: 100%; table-layout: fixed; background-color: #f7f7f7; padding-bottom: 60px; }
+        .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #1a1a1a; }
+        .top-part { background-color: #f0f0f0; height: 150px; text-align: center; }
+        .logo-circle { background-color: #F9A825; border-radius: 50%; width: 80px; height: 80px; margin: 0 auto; line-height: 80px; }
+        .logo-circle img { width: 50px; height: auto; vertical-align: middle; }
+        .content { padding: 40px; text-align: center; }
+        .content h1 { font-size: 32px; margin-top: 0; margin-bottom: 30px; font-weight: 700; }
+        .content p { font-size: 16px; line-height: 1.6; color: #555555; }
+        .otp-code { color: #1a1a1a; font-size: 48px; font-weight: bold; padding: 15px 25px; display: inline-block; margin: 20px 0; letter-spacing: 10px; }
+        .footer { text-align: center; font-size: 12px; color: #888888; padding: 20px 0; }
+      </style>
+    </head>
+    <body>
+      <center class="wrapper">
+        <table class="main" width="100%">
+          <!-- TOP GRAY BACKGROUND -->
+          <tr>
+            <td class="top-part"></td>
+          </tr>
+          <!-- WHITE CONTENT AREA -->
+          <tr>
+            <td style="padding: 0 20px;">
+              <table style="width:100%; background-color:#ffffff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.07); margin-top: -70px;">
+                <tr>
+                  <td style="padding-top: 30px; text-align:center;">
+                    <div class="logo-circle">
+                      <img src="${logoUrl}" alt="Aim Construction Logo">
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="content">
+                    <h1>${title}</h1>
+                    ${body}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- FOOTER -->
+          <tr>
+            <td class="footer">
+              <p>&copy; ${new Date().getFullYear()} Aim Construction. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </center>
+    </body>
+    </html>
+  `;
+};
+
+
 // Function to send email
 const sendEmail = async (values: ISendEmail) => {
   try {
     const info = await transporter.sendMail({
-      from: `${config.smtp.emailFrom}`, // sender address
-      to: values.to, // list of receivers
-      subject: values.subject, // subject line
-      html: values.html, // html body
+      from: `${config.smtp.emailFrom}`,
+      to: values.to,
+      subject: values.subject,
+      html: values.html,
     });
     logger.info('Mail sent successfully', info.accepted);
   } catch (error) {
@@ -43,68 +112,47 @@ const sendEmail = async (values: ISendEmail) => {
 };
 
 const sendVerificationEmail = async (to: string, otp: string) => {
-  const subject = 'Verify Your Email Address';
-  const html = `
-    <div style="width: 45% ; margin: 0 auto ;font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #ccc; border-radius: 20px;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <img src="${process.env.Ip_To_Acess_Upload_Folder}uploads/AIM_Transparent_PNG.png" alt="Logo" style="width: 200px; margin-bottom: 20px;" />
-        <h1 style="color: #1B9AAA;">Email Verification</h1>
-        <p style="font-size: 16px;">Thank you for signing up! Please verify your email address to complete the registration process. If you did not create an account with us, please disregard this email.</p>
-      </div>
-      <div style="text-align: center;">
-        <h2 style="background-color: #f4f4f4; padding: 10px 20px; display: inline-block; border-radius: 5px; color: #1B9AAA; font-size: 35px;">${otp}</h2>
-      </div>
-      <p style="font-size: 14px; text-align: center; margin-top: 20px;">This code is valid for 10 minutes. If you did not request this, please ignore this email.</p>
-    </div>
+  const subject = 'Your Verification Code';
+  const title = 'Verification Code';
+  const body = `
+    <p>Here's your verification code:</p>
+    <div class="otp-code">${otp}</div>
+    <p style="font-size: 14px;">This code will expire soon.</p>
   `;
-
+  const html = createStyledEmailTemplate(title, body);
   await sendEmail({ to, subject, html });
 };
 
 const sendResetPasswordEmail = async (to: string, otp: string) => {
-  const subject = 'Reset Your Password';
-  const html = `
-   <div style="width: 45% ; margin: 0 auto ;font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #ccc; border-radius: 20px;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <img src="${process.env.Ip_To_Acess_Upload_Folder}uploads/AIM_Transparent_PNG.png" alt="Logo" style="width: 200px; margin-bottom: 20px;" />
-        <h1 style="color: #1B9AAA;">Password Reset Request</h1>
-        <p style="font-size: 16px;">We received a request to reset your password. Use the code below to proceed with resetting your password:</p>
-      </div>
-      <div style="text-align: center;">
-        <h2 style="background-color: #f4f4f4; padding: 10px 20px; display: inline-block; border-radius: 5px; color: #1B9AAA; font-size: 35px;">${otp}</h2>
-      </div>
-      <p style="font-size: 14px; text-align: center; margin-top: 20px;">This code is valid for 10 minutes. If you did not request a password reset, please disregard this email and contact support if needed.</p>
-    </div>
+  const subject = 'Your Password Reset Code';
+  const title = 'Password Reset';
+  const body = `
+    <p>Here's your password reset code:</p>
+    <div class="otp-code">${otp}</div>
+    <p style="font-size: 14px;">If you didn't request this, you can safely ignore this email.</p>
   `;
-
+  const html = createStyledEmailTemplate(title, body);
   await sendEmail({ to, subject, html });
 };
 
-// NEW: This function creates and sends an invitation email to a new supervisor.
 const sendSupervisorInviteEmail = async (
   to: string,
   managerName: string,
   tempPassword: string
 ) => {
   const subject = `You've been invited to join Aim Construction`;
-  const html = `
-    <div style="width: 45%; margin: 0 auto; font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #ccc; border-radius: 20px;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <img src="${process.env.Ip_To_Acess_Upload_Folder}uploads/AIM_Transparent_PNG.png" alt="Logo" style="width: 200px; margin-bottom: 20px;" />
-        <h1 style="color: #1B9AAA;">You're Invited!</h1>
-        <p style="font-size: 16px;">Your manager, <strong>${managerName}</strong>, has invited you to join their team on the Aim Construction platform.</p>
-        <p style="font-size: 16px;">An account has been created for you. Please use the credentials below to log in for the first time:</p>
-      </div>
-      <div style="text-align: center;">
-        <p style="font-size: 16px; font-weight: bold;">Email: <span style="color: #1B9AAA;">${to}</span></p>
-        <p style="font-size: 16px; font-weight: bold;">Temporary Password: <span style="color: #1B9AAA;">${tempPassword}</span></p>
-      </div>
-      <p style="font-size: 14px; text-align: center; margin-top: 20px;">For security reasons, please log in and change your password immediately.</p>
+  const title = "You're Invited!";
+  const body = `
+    <p>Your manager, <strong>${managerName}</strong>, has invited you to join their team. An account has been created for you.</p>
+    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
+      <p style="font-size: 16px; margin: 10px 0;"><strong>Email:</strong> <span style="color: #F9A825;">${to}</span></p>
+      <p style="font-size: 16px; margin: 10px 0;"><strong>Temporary Password:</strong> <span style="color: #F9A825; font-weight: bold;">${tempPassword}</span></p>
     </div>
+    <p>For security reasons, please log in and change your password immediately.</p>
   `;
+  const html = createStyledEmailTemplate(title, body);
   await sendEmail({ to, subject, html });
 };
-
 
 const sendAdminOrSuperAdminCreationEmail = async (
   email: string,
@@ -113,51 +161,35 @@ const sendAdminOrSuperAdminCreationEmail = async (
   message?: string
 ) => {
   const subject = `Congratulations! You are now an ${role}`;
-  const html = `
-    <div style="width: 45%; margin: 0 auto; font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #ccc; border-radius: 20px;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <img src="${process.env.Ip_To_Acess_Upload_Folder}uploads/AIM_Transparent_PNG.png" alt="Logo" style="width: 200px; margin-bottom: 20px;" />
-        <h1 style="color: #1B9AAA;">Congratulations! You are now an ${role}</h1>
-        <p style="font-size: 16px;">You have been granted ${role} access to the system. Use the credentials below to log in:</p>
-      </div>
-      <div style="text-align: center;">
-        <p style="font-size: 16px; font-weight: bold;">Email: <span style="color: #1B9AAA;">${email}</span></p>
-        <p style="font-size: 16px; font-weight: bold;">Temporary Password: <span style="color: #1B9AAA;">${password}</span></p>
-      </div>
-      
-      ${
-        message
-          ? `<div style="margin-top: 20px; padding: 15px; background-color: #f4f4f4; border-radius: 10px;">
-              <p style="font-size: 14px; text-align: center; color: #555;">${message}</p>
-            </div>`
-          : ''
-      }
-
-      <p style="font-size: 14px; text-align: center; margin-top: 20px;">For security reasons, please log in and change your password immediately.</p>
+  const title = `Welcome, ${role}!`;
+  const body = `
+    <p>An account has been created for you on the Aim Construction platform. Use the credentials below to log in:</p>
+    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
+      <p style="font-size: 16px; margin: 10px 0;"><strong>Email:</strong> <span style="color: #F9A825;">${email}</span></p>
+      <p style="font-size: 16px; margin: 10px 0;"><strong>Temporary Password:</strong> <span style="color: #F9A825; font-weight: bold;">${password}</span></p>
     </div>
+    ${message ? `<p>${message}</p>` : ''}
+    <p>For security reasons, please log in and change your password immediately.</p>
   `;
-
+  const html = createStyledEmailTemplate(title, body);
   await sendEmail({ to: email, subject, html });
 };
 
 const sendWelcomeEmail = async (to: string, password: string) => {
-  const subject = 'Welcome to the Platform!';
-  const html = `
-    <div style="width: 45%; margin: 0 auto; font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #ccc; border-radius: 20px;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <img src="${process.env.Ip_To_Acess_Upload_Folder}uploads/AIM_Transparent_PNG.png" alt="Logo" style="width: 200px; margin-bottom: 20px;" />
-        <h1 style="color: #1B9AAA;">Welcome to the Platform!</h1>
-        <p style="font-size: 16px;">We are excited to have you join us. Your account has been created successfully. Use the following credentials to log in:</p>
-      </div>
-      <div style="text-align: center;">
-        <p style="font-size: 16px; font-weight: bold;">Email: <span style="color: #1B9AAA;">${to}</span></p>
-        <p style="font-size: 16px; font-weight: bold;">Temporary Password: <span style="color: #1B9AAA;">${password}</span></p>
-      </div>
-      <p style="font-size: 14px; text-align: center; margin-top: 20px;">For security reasons, please log in and change your password immediately.</p>
+  const subject = 'Welcome to Aim Construction!';
+  const title = 'Welcome Aboard!';
+  const body = `
+    <p>We are excited to have you join us. Your account has been created successfully. Use the following credentials to log in:</p>
+    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
+      <p style="font-size: 16px; margin: 10px 0;"><strong>Email:</strong> <span style="color: #F9A825;">${to}</span></p>
+      <p style="font-size: 16px; margin: 10px 0;"><strong>Temporary Password:</strong> <span style="color: #F9A825; font-weight: bold;">${password}</span></p>
     </div>
+    <p>For security reasons, please log in and change your password immediately.</p>
   `;
+  const html = createStyledEmailTemplate(title, body);
   await sendEmail({ to, subject, html });
 };
+
 const sendSupportMessageEmail = async (
   userEmail: string,
   userName: string,
@@ -165,25 +197,24 @@ const sendSupportMessageEmail = async (
   message: string
 ) => {
   const adminEmail = config.smtp.emailFrom;
-  const html = `
-    <div style="width: 45%; margin: 0 auto; font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #ccc; border-radius: 20px;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <img src="${process.env.Ip_To_Acess_Upload_Folder}uploads/AIM_Transparent_PNG.png" alt="Logo" style="width: 200px; margin-bottom: 20px;" />
-        <h1 style="color: #1B9AAA;">New Support Message</h1>
-        <p style="font-size: 16px;"><strong>From:</strong> ${userName} (${userEmail})</p>
-        <p style="font-size: 16px;"><strong>Subject:</strong> ${subject}</p>
-        <p style="font-size: 16px;">${message}</p>
-      </div>
-      <p style="font-size: 14px; text-align: center; margin-top: 20px;">Please respond to the user as soon as possible.</p>
+  const title = 'New Support Message';
+  const body = `
+    <p>From: <strong>${userName}</strong> (${userEmail})</p>
+    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 30px 0; text-align: left;">
+      <p style="font-size: 16px; margin: 10px 0;"><strong>Subject:</strong> ${subject}</p>
+      <hr style="border: none; border-top: 1px solid #eeeeee; margin: 15px 0;">
+      <p style="font-size: 16px; margin: 10px 0;">${message}</p>
     </div>
+    <p>Please respond to the user as soon as possible.</p>
   `;
-
+  const html = createStyledEmailTemplate(title, body);
   await sendEmail({
     to: adminEmail || '',
     subject: `Support Request from ${userName}`,
     html,
   });
 };
+
 export {
   sendEmail,
   sendVerificationEmail,
@@ -191,5 +222,5 @@ export {
   sendAdminOrSuperAdminCreationEmail,
   sendSupportMessageEmail,
   sendWelcomeEmail,
-  sendSupervisorInviteEmail, // NEW: Export the new function
+  sendSupervisorInviteEmail,
 };
