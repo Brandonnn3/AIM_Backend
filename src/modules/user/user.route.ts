@@ -33,8 +33,6 @@ router.delete(
     UserController.removeSupervisorFromCompany
 );
 
-// --- Other existing routes ---
-
 router
   .route('/paginate')
   .get(auth('projectManager'), UserController.getAllUserWithPagination);
@@ -49,7 +47,7 @@ router
 
 router
   .route('/projects')
-  .get(auth('common'), UserController.getAllProjectsByUserId);
+  .get(auth('projectManager', 'projectSupervisor'), UserController.getAllProjectsByUserId);
 
 router
   .route('/superVisors')
@@ -61,38 +59,39 @@ router
 router
   .route('/profile-image')
   .post(
-    auth('common'),
+    auth('projectManager', 'projectSupervisor'),
     [upload.single('profileImage')],
     UserController.updateProfileImage
   );
 
-// ✨ FIX: Changed the method from .patch() to .put() to match the frontend API call.
 router
   .route('/update-profile/:userId')
   .put(
-    auth('common'),
+    auth('projectManager', 'projectSupervisor'),
     [upload.single('profileImage')],
     UserController.updateProfile
   );
 
 router
   .route('/profile')
-  .get(auth('common'), UserController.getMyProfile)
+  .get(auth('projectManager', 'projectSupervisor'), UserController.getMyProfile)
   .patch(
-    auth('common'),
+    auth('projectManager', 'projectSupervisor'),
     validateRequest(UserValidation.updateUserValidationSchema),
     upload.single('profile_image'),
     UserController.updateMyProfile
   )
-  .delete(auth('common'), UserController.deleteMyProfile);
+  .delete(auth('projectManager', 'projectSupervisor'), UserController.deleteMyProfile);
 
-router.route('/').get(auth('common'), UserController.getAllUsers);
+// ✅ DEFINITIVE FIX: Changed auth('common') to allow both managers and supervisors.
+// This was the route causing the 403 error after login.
+router.route('/').get(auth('projectManager', 'projectSupervisor'), UserController.getAllUsers);
 
 router
   .route('/:userId')
-  .get(auth('common'), UserController.getSingleUser)
+  .get(auth('projectManager', 'projectSupervisor'), UserController.getSingleUser)
   .put(
-    auth('common'),
+    auth('projectManager', 'projectSupervisor'),
     validateRequest(UserValidation.updateUserValidationSchema),
     UserController.updateUserProfile
   )

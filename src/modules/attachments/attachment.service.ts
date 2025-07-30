@@ -12,22 +12,21 @@ export class AttachmentService extends GenericService<typeof Attachment> {
     super(Attachment);
   }
 
-  // ✨ NEW: The missing function to handle single file uploads like profile pictures.
+  // ✅ DEFINITIVE FIX: This function is now aligned with the corrected user session data.
   async uploadSingleAttachment(
     file: Express.Multer.File,
-    folderName: string, // e.g., 'user'
-    user: TUser,
+    folderName: string,
+    user: any, // user is the decoded token payload
     attachedToType: string
   ) {
-    // For profile pictures, we don't have a projectId, so we can use the userId instead
-    // to create a unique path.
-    const pathId = (user._id as any).toString(); 
+    // Use `userId` from the token payload for creating a unique path.
+    const pathId = user.userId;
 
     const uploadedFileUrl = await uploadFile({
       fileBuffer: file.buffer,
-      // We use a generic companyId or the user's companyId if available
-      companyId: (user as any).companyId || 'aim-construction', 
-      projectId: pathId, // Using userId for uniqueness
+      // Use `companyId` from the token payload.
+      companyId: user.companyId || 'aim-construction',
+      projectId: pathId, // Using userId for uniqueness in this context
       originalname: file.originalname,
     });
 
@@ -35,13 +34,13 @@ export class AttachmentService extends GenericService<typeof Attachment> {
       ? AttachmentType.image
       : AttachmentType.document;
 
-    // Create the attachment record without linking to a project or note
+    // Create the attachment record using `userId` from the token.
     const newAttachment = await this.create({
       attachment: uploadedFileUrl,
       attachmentType: fileType,
       attachedToType: attachedToType,
-      attachedToId: user._id, // The attachment is linked to the user themselves
-      uploaderId: user._id,
+      attachedToId: user.userId, // The attachment is linked to the user themselves
+      uploaderId: user.userId,
       uploaderRole: user.role,
     } as any);
 
@@ -52,7 +51,7 @@ export class AttachmentService extends GenericService<typeof Attachment> {
     file: Express.Multer.File,
     metadata: {
       projectId: string;
-      user: TUser;
+      user: any; // user is the decoded token payload
       attachedToType: string;
       customName?: string;
     }
@@ -61,7 +60,8 @@ export class AttachmentService extends GenericService<typeof Attachment> {
 
     const uploadedFileUrl = await uploadFile({
       fileBuffer: file.buffer,
-      companyId: (user as any).companyId || 'aim-construction',
+      // ✅ FIX: Use `companyId` from the token payload.
+      companyId: user.companyId || 'aim-construction',
       projectId: projectId,
       originalname: file.originalname,
     });
@@ -76,7 +76,8 @@ export class AttachmentService extends GenericService<typeof Attachment> {
       attachedToType: attachedToType,
       attachedToId: projectId,
       projectId: projectId,
-      uploaderId: user._id,
+      // ✅ FIX: Use `userId` from the token payload.
+      uploaderId: user.userId,
       uploaderRole: user.role,
       customName: customName || file.originalname,
     } as any);
@@ -88,12 +89,13 @@ export class AttachmentService extends GenericService<typeof Attachment> {
     file: Express.Multer.File,
     projectId: string,
     noteId: string,
-    user: TUser,
+    user: any, // user is the decoded token payload
     attachedToType: string
   ) {
     const uploadedFileUrl = await uploadFile({
       fileBuffer: file.buffer,
-      companyId: (user as any).companyId || 'aim-construction',
+      // ✅ FIX: Use `companyId` from the token payload.
+      companyId: user.companyId || 'aim-construction',
       projectId: projectId,
       originalname: file.originalname,
     });
@@ -111,7 +113,8 @@ export class AttachmentService extends GenericService<typeof Attachment> {
       attachedToType: attachedToType,
       attachedToId: noteId,
       projectId: projectId,
-      uploaderId: user._id,
+      // ✅ FIX: Use `userId` from the token payload.
+      uploaderId: user.userId,
       uploaderRole: user.role,
     } as any);
 

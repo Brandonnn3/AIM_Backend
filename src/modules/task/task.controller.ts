@@ -5,7 +5,6 @@ import pick from '../../shared/pick';
 import { TaskService } from './task.service';
 import { TaskStatus } from './task.constant';
 import { AttachmentService } from '../attachments/attachment.service';
-import { FolderName } from '../../enums/folderNames';
 import { AttachedToType } from '../attachments/attachment.constant';
 import { NotificationService } from '../notification/notification.services';
 import { Project } from '../project/project.model';
@@ -14,13 +13,12 @@ import ApiError from '../../errors/ApiError';
 import { TUser } from '../user/user.interface';
 import { INotification } from '../notification/notification.interface';
 import { io } from '../../server';
-import { Types } from 'mongoose'; 
-import { Task } from './task.model';
+import { Types } from 'mongoose';
+import { User } from '../user/user.model';
 
 const taskService = new TaskService();
 const attachmentService = new AttachmentService();
 
-// --- FIX: This function has been updated with the new attachment logic ---
 const createTask = catchAsync(async (req, res) => {
   const user = req.user as any;
   if (user.userId) {
@@ -28,22 +26,18 @@ const createTask = catchAsync(async (req, res) => {
   }
   req.body.task_status = TaskStatus.open;
 
-  // Step 1: Create the task first, without any attachments.
-  // This ensures we have a valid task ID to link files to.
   const taskPayload = { ...req.body };
-  delete taskPayload.attachments; // Remove attachments from the initial payload
+  delete taskPayload.attachments;
   const result = await taskService.create(taskPayload);
 
-  // Step 2: If files were included in the request, upload and link them now.
   const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
   if (files && files.attachments && files.attachments.length > 0) {
     await Promise.all(
       files.attachments.map(async (file: Express.Multer.File) => {
-        // Use the new service method, passing the newly created task's ID
         return await attachmentService.uploadAndLinkAttachment(
           file,
-          result.projectId, // Get projectId from the created task
-          result._id,       // The new task's ID
+          result.projectId,
+          result._id,
           user,
           AttachedToType.task
         );
@@ -51,21 +45,23 @@ const createTask = catchAsync(async (req, res) => {
     );
   }
 
-  // --- Your existing notification logic remains unchanged ---
-  const project = await Project.findById(req.body.projectId).populate('projectSuperVisorId');
+  const project = await Project.findById(req.body.projectId);
 
   if (!project) {
     throw new ApiError(StatusCodes.NOT_FOUND,'Project is not found');
   }
 
-  if ((project && project.projectSuperVisorId) || result.assignedTo) {
-    const registrationToken = user?.fcmToken;
+  const supervisorToNotifyId = result.assignedTo;
 
-    if (registrationToken) {
+  if (supervisorToNotifyId) {
+    const supervisor = await User.findById(supervisorToNotifyId);
+    const registrationToken = supervisor?.fcmToken;
+
+    if (registrationToken && project.projectManagerId) {
       await sendPushNotification(
         registrationToken,
         `A new task "${result.title}" has been created by ${user.userName}.`,
-        project.projectManagerId.toString()
+        supervisorToNotifyId.toString()
       );
     }
 
@@ -77,7 +73,7 @@ const createTask = catchAsync(async (req, res) => {
         
     const notificationPayload: INotification = {
       title: `Task ${truncatedTaskName} Created has been created by ${user.userName}.`,
-      receiverId: project.projectSuperVisorId,
+      receiverId: supervisorToNotifyId,
       notificationFor: 'task',
       role: 'projectSupervisor' as any,
       image: project.projectLogo || '',
@@ -91,7 +87,7 @@ const createTask = catchAsync(async (req, res) => {
       notificationPayload
     );
     
-    if (io) {
+    if (io && project.projectManagerId) {
       io.to(project.projectManagerId.toString()).emit('newNotification', {
         code: StatusCodes.OK,
         message: 'New notification',
@@ -107,8 +103,6 @@ const createTask = catchAsync(async (req, res) => {
   });
 });
 
-
-// --- All other original functions are preserved below ---
 
 const changeStatusOfATaskFix = catchAsync(async (req, res) => {
   const { status } = req.query;
@@ -143,6 +137,15 @@ const changeStatusOfATask = catchAsync(async (req, res) => {
   const user = req.user as any;
   const { taskId } = req.params;
 
+  // ✅ DEFINITIVE FIX: Enhanced authentication check for more specific error messages.
+  // The root cause is likely the client not sending the auth header, which this check will now clarify.
+  if (!user) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'Authentication error: No user credentials found on the request. The auth token may be missing or invalid.');
+  }
+  if (!user.userId) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'Authentication error: User ID not found in the provided authentication token.');
+  }
+
   const task = await taskService.getById(taskId);
   if (!task) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Task not found');
@@ -153,8 +156,13 @@ const changeStatusOfATask = catchAsync(async (req, res) => {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Associated project not found');
   }
 
-  const isProjectManager = project.projectManagerId.toString() === user.id.toString();
-  const isAssignedSupervisor = task.assignedTo?.toString() === user.id.toString();
+  const currentUserId = user.userId.toString();
+  const managerId = project.projectManagerId?.toString();
+  
+  const assignedSupervisorId = (task.assignedTo as any)?._id?.toString();
+
+  const isProjectManager = managerId === currentUserId;
+  const isAssignedSupervisor = assignedSupervisorId === currentUserId;
 
   if (!isProjectManager && !isAssignedSupervisor) {
     throw new ApiError(StatusCodes.FORBIDDEN, 'You do not have permission to complete this task.');

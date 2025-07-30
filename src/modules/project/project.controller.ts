@@ -17,10 +17,10 @@ import { Project } from '../project/project.model';
 const projectService = new ProjectService();
 const attachmentService = new AttachmentService();
 
-// --- NO CHANGES TO THIS FUNCTION ---
 const createProject: RequestHandler = catchAsync(async (req, res) => {
-  const user = req.user as TUser;
-  req.body.projectManagerId = user._id;
+  const user = req.user as any; // The user object is from the decoded token
+  // ✅ FIX: Use `userId` from the token payload instead of `_id`
+  req.body.projectManagerId = user.userId;
   req.body.projectStatus = 'planning';
 
   if (req.body.projectSuperVisorId) {
@@ -79,7 +79,7 @@ const createProject: RequestHandler = catchAsync(async (req, res) => {
     await NotificationService.addNotification(managerAssignmentActivity);
   }
 
-  const creatorName = user.fname ? `${user.fname} ${user.lname}` : 'A manager';
+  const creatorName = user.userName ? user.userName : 'A manager';
   const creatorActivity: INotification = {
     title: `New Project Created: ${creatorName} created the project '${result.projectName}'.`,
     receiverId: result.projectManagerId,
@@ -102,7 +102,7 @@ const createProject: RequestHandler = catchAsync(async (req, res) => {
 });
 
 const getAssignableSupervisors: RequestHandler = catchAsync(async (req, res) => {
-    const user = req.user as TUser;
+    const user = req.user as any;
     const { projectId } = req.params;
 
     if (!user.companyId) {
@@ -113,7 +113,6 @@ const getAssignableSupervisors: RequestHandler = catchAsync(async (req, res) => 
     if (!project) {
         throw new ApiError(StatusCodes.NOT_FOUND, 'Project not found.');
     }
-    // ✨ FIX: Add explicit type 'Types.ObjectId' to the map parameter
     const assignedSupervisorIds = project.projectSuperVisorIds?.map((id: Types.ObjectId) => id.toString()) || [];
 
     const allSupervisors = await User.find({
@@ -122,7 +121,6 @@ const getAssignableSupervisors: RequestHandler = catchAsync(async (req, res) => 
     }).select('fname lname email profileImage');
 
     const assignableSupervisors = allSupervisors.map(supervisor => {
-        // ✨ FIX: Use the 'id' virtual getter which is a string and always defined
         const isAssigned = assignedSupervisorIds.includes(supervisor.id);
         return {
             ...supervisor.toObject(),
@@ -150,14 +148,12 @@ const assignSupervisorsToProject: RequestHandler = catchAsync(async (req, res) =
     if (!projectBeforeUpdate) {
         throw new ApiError(StatusCodes.NOT_FOUND, 'Project not found.');
     }
-    // ✨ FIX: Add explicit type 'Types.ObjectId' to the map parameter
     const oldSupervisorIds = projectBeforeUpdate.projectSuperVisorIds?.map((id: Types.ObjectId) => id.toString()) || [];
 
     const updatedProject = await projectService.updateById(projectId, {
         projectSuperVisorIds: supervisorIds
     });
 
-    // ✨ FIX: Add explicit type 'string' to the map and filter parameters
     const newSupervisorIds = supervisorIds.map((id: string) => id.toString());
     const addedSupervisors = newSupervisorIds.filter((id: string) => !oldSupervisorIds.includes(id));
     const removedSupervisors = oldSupervisorIds.filter((id: string) => !newSupervisorIds.includes(id));
@@ -193,14 +189,11 @@ const assignSupervisorsToProject: RequestHandler = catchAsync(async (req, res) =
     });
 });
 
-
-// --- NO CHANGES TO OTHER FUNCTIONS ---
-
 const updateById: RequestHandler = catchAsync(async (req, res) => {
-    const user = req.user as TUser;
+    const user = req.user as any;
     const result = await projectService.updateById(req.params.projectId, req.body);
     if (result && result.projectManagerId) {
-      const updaterName = user.fname ? `${user.fname} ${user.lname}` : 'A manager';
+      const updaterName = user.userName ? user.userName : 'A manager';
       const notificationPayload: INotification = {
         title: `Project Updated: Details for '${result.projectName}' were updated by ${updaterName}.`,
         receiverId: result.projectManagerId,
@@ -273,25 +266,30 @@ const getAllProject: RequestHandler = catchAsync(async (req, res) => {
     sendResponse(res, { code: StatusCodes.OK, data: result, message: 'All projects', success: true });
 });
 
-// ✨ FIX: Convert user._id from an ObjectId to a string before passing to the service
 const getAllProjectsByManager: RequestHandler = catchAsync(async (req, res) => {
-  const user = req.user as TUser;
-  if (!user || !user._id) { throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not found or invalid token'); }
-  const result = await projectService.getAllProjectsByManagerId(user._id.toString());
+  const user = req.user as any;
+  // ✅ FIX: Check for `userId` from the token payload
+  if (!user || !user.userId) { throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not found or invalid token'); }
+  // ✅ FIX: Pass `user.userId` to the service
+  const result = await projectService.getAllProjectsByManagerId(user.userId);
   sendResponse(res, { code: StatusCodes.OK, data: result, message: 'Manager projects retrieved successfully', success: true });
 });
 
 const getAllProjectsBySupervisor: RequestHandler = catchAsync(async (req, res) => {
-  const user = req.user as TUser;
-  if (!user || !user._id) { throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not found or invalid token'); }
-  const result = await projectService.getAllProjectsBySupervisorId(user._id.toString());
+  const user = req.user as any;
+  // ✅ FIX: Check for `userId` from the token payload
+  if (!user || !user.userId) { throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not found or invalid token'); }
+  // ✅ FIX: Pass `user.userId` to the service
+  const result = await projectService.getAllProjectsBySupervisorId(user.userId);
   sendResponse(res, { code: StatusCodes.OK, data: result, message: 'Supervisor projects retrieved successfully', success: true });
 });
 
 const getAllProjectWithPagination: RequestHandler = catchAsync(async (req, res) => {
   const user = req.user as any;
-  if (!user || !user._id) { throw new ApiError(StatusCodes.UNAUTHORIZED, 'User information is missing'); }
-  const result = await projectService.getAllProjectsByManagerId(user._id.toString());
+  // ✅ FIX: Check for `userId` from the token payload
+  if (!user || !user.userId) { throw new ApiError(StatusCodes.UNAUTHORIZED, 'User information is missing'); }
+  // ✅ FIX: Pass `user.userId` to the service
+  const result = await projectService.getAllProjectsByManagerId(user.userId);
   sendResponse(res, { code: StatusCodes.OK, data: result, message: 'Manager projects retrieved successfully', success: true });
 });
 

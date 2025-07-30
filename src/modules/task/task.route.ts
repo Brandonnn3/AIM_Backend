@@ -15,7 +15,7 @@ router.route('/paginate').get(
 );
 
 router.route('/:taskId').get(
-  auth('common'),
+  auth('projectManager', 'projectSupervisor'), // Also allow supervisors to get task details
   TaskController.getATask
 );
 
@@ -33,11 +33,10 @@ router.route('/').get(
 router.route('/create').post(
   [
     upload.fields([
-      { name: 'attachments', maxCount: 15 }, // Allow up to 5 cover photos
+      { name: 'attachments', maxCount: 15 },
     ]),
   ],
   auth('projectManager'),
-  // validateRequest(UserValidation.createUserValidationSchema),
   TaskController.createTask
 );
 
@@ -47,9 +46,10 @@ router.route('/delete/:taskId').delete(
 );
 
 
-//[🚧][🧑‍💻✅][🧪🆗]
+// ✅ DEFINITIVE FIX: Changed auth('common') to explicitly allow the correct roles.
+// This ensures the auth middleware correctly processes the token for both managers and supervisors.
 router.route('/changeStatus/:taskId').patch(
-  auth('common'), // We will handle specific permissions in the controller
+  auth('projectManager', 'projectSupervisor'), 
   TaskController.changeStatusOfATask
 );
 

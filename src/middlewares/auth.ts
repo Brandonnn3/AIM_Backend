@@ -1,7 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { Secret } from 'jsonwebtoken';
-import { roleRights } from './roles';
 import { User } from '../modules/user/user.model';
 import ApiError from '../errors/ApiError';
 import catchAsync from '../shared/catchAsync';
@@ -9,7 +8,7 @@ import { config } from '../config';
 import { TokenType } from '../modules/token/token.interface';
 import { TokenService } from '../modules/token/token.service';
 
-const auth = (...roles: string[]) =>
+const auth = (...requiredRoles: string[]) =>
   catchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const tokenWithBearer = req.headers.authorization;
     if (!tokenWithBearer || !tokenWithBearer.startsWith('Bearer')) {
@@ -17,38 +16,39 @@ const auth = (...roles: string[]) =>
     }
 
     const token = tokenWithBearer.split(' ')[1];
-    // This verifyToken function internally uses jwt.verify and returns the decoded payload
+    
+    // This function returns the decoded payload which includes userId, role, etc.
     const verifiedUserPayload = await TokenService.verifyToken(
       token,
       config.jwt.accessSecret as Secret,
       TokenType.ACCESS
     );
 
-    if (!verifiedUserPayload) {
-      throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid token. Please log in again.');
+    if (!verifiedUserPayload || !verifiedUserPayload.userId) {
+      throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid token payload. Please log in again.');
     }
 
-    // FINAL FIX: Use verifiedUserPayload.userId to find the user
-    // The decoded token payload has the 'userId' property.
-    const user = await User.findById(verifiedUserPayload.userId);
+    // It's good practice to ensure the user still exists in the database.
+    const userFromDb = await User.findById(verifiedUserPayload.userId).lean();
 
-    if (!user) {
+    if (!userFromDb) {
       throw new ApiError(StatusCodes.NOT_FOUND, 'User associated with this token not found.');
     }
-    if (!user.isEmailVerified) {
+    if (!userFromDb.isEmailVerified) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Your account is not verified.');
     }
     
-    // Attach the full user object from the database to the request.
-    (req as any).user = user;
+    // ✅ DEFINITIVE FIX: Attach the verified token payload to the request.
+    // This ensures that `req.user.userId` and `req.user.role` are available downstream.
+    (req as any).user = verifiedUserPayload;
 
-    if (roles.length) {
-      const userRole = roleRights.get(user.role);
-      const hasPermission = userRole?.some(role => roles.includes(role));
-      if (!hasPermission) {
-        throw new ApiError(
+    // Perform role check if any roles are required for the route.
+    if (requiredRoles.length) {
+      const userRole = verifiedUserPayload.role; // Get role from the token
+      if (!requiredRoles.includes(userRole)) {
+         throw new ApiError(
           StatusCodes.FORBIDDEN,
-          "You don't have permission to access this API"
+          "You don't have permission to access this resource."
         );
       }
     }

@@ -65,6 +65,8 @@ const inviteSupervisors = async (
         isEmailVerified: true,
         isPasswordTemporary: true,
         superVisorsManagerId: invitingManager._id,
+        // ✨ FIX: Add the companyId to the new user document.
+        companyId: companyId,
         fname: 'New',
         lname: 'Supervisor',
         address: '',
@@ -72,7 +74,6 @@ const inviteSupervisors = async (
         phoneNumber: '',
       });
 
-      // --- FIX: Use the 'savedSupervisor' variable consistently after saving ---
       const savedSupervisor = await newSupervisor.save();
 
       await companyService.joinCompany(savedSupervisor, companyId!.toString());
