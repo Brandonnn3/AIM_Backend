@@ -10,22 +10,22 @@ const router = express.Router();
 //info : pagination route must be before the route with params
 router
   .route('/paginate')
-  .get(auth('common'), NoteController.getAllNoteWithPagination);
+  .get(auth('projectManager', 'projectSupervisor'), NoteController.getAllNoteWithPagination);
 
 //////////////////////////////////////////////////////
 //[🚧][🧑‍💻✅][🧪🆗] // query :: projectId  date
 router
   .route('/getAllByDateAndProjectId/')
-  .get(auth('common'), NoteController.getAllByDateAndProjectId);
+  .get(auth('projectManager', 'projectSupervisor'), NoteController.getAllByDateAndProjectId);
 
 router
   .route('/getPreviewByDateAndProjectId/')
-  .get(auth('common'), NoteController.getPreviewByDateAndProjectId);
+  .get(auth('projectManager', 'projectSupervisor'), NoteController.getPreviewByDateAndProjectId);
 
 //////////////////////////////////////////////////////
 
 //[🚧][🧑‍💻✅][🧪🆗]
-router.route('/:noteId').get(auth('common'), NoteController.getANote);
+router.route('/:noteId').get(auth('projectManager', 'projectSupervisor'), NoteController.getANote);
 
 //[🚧][🧑‍�✅][🧪🆗]
 router
@@ -38,21 +38,19 @@ router
   .get(auth('projectManager'), NoteController.changeStatusOfANoteWithDeny);
 
 router.route('/update/:noteId').put(
-  auth('projectManager'),
-  // validateRequest(UserValidation.createUserValidationSchema),
+  auth('projectManager', 'projectSupervisor'), // Allow both to update
   NoteController.updateById
 );
 
-router.route('/').get(auth('common'), NoteController.getAllNote);
+router.route('/').get(auth('projectManager', 'projectSupervisor'), NoteController.getAllNote);
 
-//[🚧][🧑‍💻✅][🧪🆗] //
+//[🚧][🧑‍💻✅][🧪🆗] // 
 router.route('/create').post(
   [
     upload.fields([
-      { name: 'attachments', maxCount: 15 }, // Allow up to 5 cover photos
+      { name: 'attachments', maxCount: 15 },
     ]),
   ],
-  // MODIFIED: Added 'projectManager' to the list of allowed roles.
   auth('projectSupervisor', 'projectManager'),
   NoteController.createNote
 );
@@ -61,16 +59,16 @@ router.route('/create').post(
 router.route('/uploadImagesOrDocuments').post(
   [
     upload.fields([
-      { name: 'attachments', maxCount: 15 }, // Allow up to 5 cover photos
+      { name: 'attachments', maxCount: 15 },
     ]),
   ],
-  auth('common'),
+  auth('projectManager', 'projectSupervisor'),
   AttachmentController.createAttachment
 );
 
 // eta front-end e integrate kora lagbe
 router
   .route('/delete/:noteId')
-  .delete(auth('common'), NoteController.deleteById);
+  .delete(auth('projectManager', 'projectSupervisor'), NoteController.deleteById);
 
 export const NoteRoutes = router;

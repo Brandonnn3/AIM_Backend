@@ -24,7 +24,6 @@ export class UserCustomService extends GenericService<typeof User> {
     }
 }
 
-// This function finds all supervisors linked to a specific manager.
 const getSupervisorsByManager = async (managerId: string): Promise<TUser[]> => {
   const supervisors = await User.find({
     role: 'projectSupervisor',
@@ -37,13 +36,14 @@ const getSupervisorsByManager = async (managerId: string): Promise<TUser[]> => {
 
 const inviteSupervisors = async (
   emails: string[],
-  invitingManager: TUser
+  invitingManager: any // This is the decoded token payload
 ): Promise<{ successfulInvites: TUser[]; failedInvites: { email: string; reason: string }[] }> => {
   const companyService = new CompanyService();
   const successfulInvites: TUser[] = [];
   const failedInvites: { email: string; reason: string }[] = [];
 
-  const managerCompanyLink = await UserCompany.findOne({ userId: invitingManager._id });
+  // ✅ DEFINITIVE FIX: Use `userId` from the token payload.
+  const managerCompanyLink = await UserCompany.findOne({ userId: invitingManager.userId });
   if (!managerCompanyLink) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Inviting manager is not associated with a company.');
   }
@@ -64,13 +64,12 @@ const inviteSupervisors = async (
         role: 'projectSupervisor',
         isEmailVerified: true,
         isPasswordTemporary: true,
-        superVisorsManagerId: invitingManager._id,
-        // ✨ FIX: Add the companyId to the new user document.
+        superVisorsManagerId: invitingManager.userId,
         companyId: companyId,
         fname: 'New',
         lname: 'Supervisor',
         address: '',
-        companyName: invitingManager.companyName,
+        companyName: invitingManager.userName, // Use userName from token
         phoneNumber: '',
       });
 
@@ -78,7 +77,7 @@ const inviteSupervisors = async (
 
       await companyService.joinCompany(savedSupervisor, companyId!.toString());
       
-      await sendSupervisorInviteEmail(email, invitingManager.fname, tempPassword);
+      await sendSupervisorInviteEmail(email, invitingManager.userName, tempPassword);
 
       successfulInvites.push(savedSupervisor);
 
@@ -91,7 +90,6 @@ const inviteSupervisors = async (
   return { successfulInvites, failedInvites };
 };
 
-// NEW: Function to cancel a pending invitation by deleting the user
 const cancelSupervisorInvitation = async (supervisorId: string, managerId: string): Promise<void> => {
   const supervisor = await User.findById(supervisorId);
 
@@ -110,7 +108,6 @@ const cancelSupervisorInvitation = async (supervisorId: string, managerId: strin
   await User.findByIdAndDelete(supervisorId);
 };
 
-// NEW: Function to remove an active supervisor from a company
 const removeSupervisorFromCompany = async (supervisorId: string, managerId: string): Promise<void> => {
     const supervisor = await User.findById(supervisorId);
 

@@ -1,17 +1,23 @@
 import catchAsync from '../../shared/catchAsync';
 import sendResponse from '../../shared/sendResponse';
 import { StatusCodes } from 'http-status-codes';
-import pick from '../../shared/pick';
 import ApiError from '../../errors/ApiError';
-import { AttachmentService } from '../attachments/attachment.service';
-import { FolderName } from '../../enums/folderNames';
-import { AttachedToType } from '../attachments/attachment.constant';
 import { CompanyService } from './company.service';
 import { Company } from './company.model';
-import { TUser } from '../user/user.interface';
 import { NotificationService } from '../notification/notification.services'; 
 
 const companyService = new CompanyService();
+
+const getMyCompany = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await companyService.getCompanyByManagerId(user.userId);
+  sendResponse(res, {
+    code: StatusCodes.OK,
+    data: result,
+    message: 'Company details retrieved successfully',
+    success: true,
+  });
+});
 
 const createCompany = catchAsync(async (req, res) => {
   if(req.body.name === ""){
@@ -73,21 +79,25 @@ const getAllCompany = catchAsync(async (req, res) => {
 
 
 const updateById = catchAsync(async (req, res) => {
-  const result = await companyService.updateById(
-    req.params.contractId,
-    req.body
+  const user = req.user as any;
+  const { companyId } = req.params;
+
+  const result = await companyService.updateCompanyById(
+    companyId,
+    req.body,
+    user.userId
   );
 
-  const user = req.user as TUser;
-  if (result && user?._id) {
+  if (result && user?.userId) {
+    // ✅ DEFINITIVE FIX: The notification payload now includes the required 'role' field.
     const notificationPayload = {
       title: `Company profile for '${result.name}' was updated.`,
-      receiverId: user._id, // Notify the user who made the change
-      notificationFor: 'company', // You can add an icon for this
+      receiverId: user.userId,
+      notificationFor: 'company',
+      role: user.role, // This was the missing field
     };
     await NotificationService.addNotification(notificationPayload as any);
   }
-
 
   sendResponse(res, {
     code: StatusCodes.OK,
@@ -98,7 +108,7 @@ const updateById = catchAsync(async (req, res) => {
 });
 
 const deleteById = catchAsync(async (req, res) => {
-  await companyService.deleteById(req.params.contractId);
+  await companyService.deleteById(req.params.companyId);
   sendResponse(res, {
     code: StatusCodes.OK,
     message: 'Company deleted successfully',
@@ -107,7 +117,7 @@ const deleteById = catchAsync(async (req, res) => {
 });
 
 const joinCompany = catchAsync(async (req, res) => {
-  const user = req.user;
+  const user = req.user as any;
   const { companyId } = req.body;
 
   if (!user) {
@@ -117,7 +127,7 @@ const joinCompany = catchAsync(async (req, res) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Company ID is required.');
   }
 
-  const result = await companyService.joinCompany(user as TUser, companyId);
+  const result = await companyService.joinCompany(user, companyId);
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -126,16 +136,15 @@ const joinCompany = catchAsync(async (req, res) => {
   });
 });
 
-// NEW: This controller handles the first step of the manager onboarding.
 const setupCompanyProfile = catchAsync(async (req, res) => {
-    const user = req.user;
+    const user = req.user as any;
     const companyProfileData = req.body;
 
     if (!user) {
         throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not authenticated.');
     }
 
-    const result = await companyService.setupCompanyProfile(companyProfileData, user as TUser);
+    const result = await companyService.setupCompanyProfile(companyProfileData, user);
 
     sendResponse(res, {
         code: StatusCodes.CREATED,
@@ -153,5 +162,6 @@ export const CompanyController = {
   updateById,
   deleteById,
   joinCompany,
-  setupCompanyProfile, // NEW: Export the new function
+  setupCompanyProfile,
+  getMyCompany,
 };

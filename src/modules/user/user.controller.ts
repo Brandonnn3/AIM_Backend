@@ -16,13 +16,14 @@ const userCustomService = new UserCustomService();
 const attachmentService = new AttachmentService();
 
 const getMySupervisors = catchAsync(async (req, res) => {
-  const manager = req.user as TUser;
+  const manager = req.user as any; // This is the decoded token payload
 
-  if (!manager || !manager._id) {
+  // ✅ DEFINITIVE FIX: Use `userId` from the token, not `_id`.
+  if (!manager || !manager.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'Manager not authenticated.');
   }
 
-  const result = await UserService.getSupervisorsByManager((manager._id as any).toString());
+  const result = await UserService.getSupervisorsByManager(manager.userId);
   
   sendResponse(res, {
     code: StatusCodes.OK,
@@ -32,18 +33,15 @@ const getMySupervisors = catchAsync(async (req, res) => {
 });
 
 const inviteSupervisors = catchAsync(async (req, res) => {
-  const invitingManager = req.user;
+  const invitingManager = req.user as any;
   const { emails } = req.body;
 
-  if (!invitingManager) {
+  if (!invitingManager || !invitingManager.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You must be logged in to send invites.');
   }
 
-  if (!emails || !Array.isArray(emails) || emails.length === 0) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'A list of emails is required.');
-  }
-
-  const result = await UserService.inviteSupervisors(emails, invitingManager as TUser);
+  // Pass the full user payload to the service
+  const result = await UserService.inviteSupervisors(emails, invitingManager);
   
   sendResponse(res, {
     code: StatusCodes.OK,
@@ -52,12 +50,11 @@ const inviteSupervisors = catchAsync(async (req, res) => {
   });
 });
 
-// NEW: Controller for canceling a pending invite
 const cancelSupervisorInvitation = catchAsync(async (req, res) => {
   const supervisorId = req.params.id;
-  const manager = req.user as TUser;
+  const manager = req.user as any;
 
-  await UserService.cancelSupervisorInvitation(supervisorId, (manager._id as any).toString());
+  await UserService.cancelSupervisorInvitation(supervisorId, manager.userId);
 
   sendResponse(res, {
     code: StatusCodes.OK,
@@ -65,12 +62,11 @@ const cancelSupervisorInvitation = catchAsync(async (req, res) => {
   });
 });
 
-// NEW: Controller for removing an active supervisor
 const removeSupervisorFromCompany = catchAsync(async (req, res) => {
     const supervisorId = req.params.id;
-    const manager = req.user as TUser;
+    const manager = req.user as any;
 
-    await UserService.removeSupervisorFromCompany(supervisorId, (manager._id as any).toString());
+    await UserService.removeSupervisorFromCompany(supervisorId, manager.userId);
 
     sendResponse(res, {
         code: StatusCodes.OK,
@@ -92,7 +88,8 @@ const createAdminOrSuperAdmin = catchAsync(async (req, res) => {
 });
 
 const getAllUsers = catchAsync(async (req, res) => {
-  const currentUserId = new Types.ObjectId((req.user as TUser)._id as any);
+  const user = req.user as any;
+  const currentUserId = new Types.ObjectId(user.userId);
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
   const skip = (page - 1) * limit;
@@ -218,8 +215,8 @@ const updateProfile = catchAsync(async (req, res) => {
     const attachmentResult = await attachmentService.uploadSingleAttachment(
       req.file,
       FolderName.user,
-      req.user as TUser,
-      'user' // ✨ FIX: Use the string 'user' directly.
+      req.user as any,
+      'user'
     );
 
     req.body.profileImage = {
@@ -237,24 +234,23 @@ const updateProfile = catchAsync(async (req, res) => {
 });
 
 const updateProfileImage = catchAsync(async (req, res) => {
-  const userId = (req.user as TUser)._id;
-  if (!userId) {
+  const user = req.user as any;
+  if (!user || !user.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
   }
   if (req.file) {
-    // ✨ FIX: Removed the extra 'null' argument to match the function definition.
     const attachmentResult = await attachmentService.uploadSingleAttachment(
       req.file,
       FolderName.user,
-      req.user as TUser,
-      'user' // ✨ FIX: Use the string 'user' directly.
+      user,
+      'user'
     );
 
     req.body.profileImage = {
       imageUrl: attachmentResult.attachment,
     };
   }
-  const result = await UserService.updateMyProfile((userId as any).toString(), req.body);
+  const result = await UserService.updateMyProfile(user.userId, req.body);
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -263,8 +259,8 @@ const updateProfileImage = catchAsync(async (req, res) => {
 });
 
 const updateMyProfile = catchAsync(async (req, res) => {
-  const userId = (req.user as TUser)._id;
-  if (!userId) {
+  const user = req.user as any;
+  if (!user || !user.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
   }
   if (req.file) {
@@ -273,7 +269,7 @@ const updateMyProfile = catchAsync(async (req, res) => {
       file: req.file,
     };
   }
-  const result = await UserService.updateMyProfile((userId as any).toString(), req.body);
+  const result = await UserService.updateMyProfile(user.userId, req.body);
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -304,11 +300,11 @@ const updateUserProfile = catchAsync(async (req, res) => {
 });
 
 const getMyProfile = catchAsync(async (req, res) => {
-  const userId = (req.user as TUser)._id;
-  if (!userId) {
+  const user = req.user as any;
+  if (!user || !user.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
   }
-  const result = await UserService.getMyProfile((userId as any).toString());
+  const result = await UserService.getMyProfile(user.userId);
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -316,11 +312,11 @@ const getMyProfile = catchAsync(async (req, res) => {
   });
 });
 const deleteMyProfile = catchAsync(async (req, res) => {
-  const userId = (req.user as TUser)._id;
-  if (!userId) {
+  const user = req.user as any;
+  if (!user || !user.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
   }
-  const result = await UserService.deleteMyProfile((userId as any).toString());
+  const result = await UserService.deleteMyProfile(user.userId);
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -329,10 +325,11 @@ const deleteMyProfile = catchAsync(async (req, res) => {
 });
 
 const getAllProjectsByUserId = catchAsync(async (req, res) => {
-  if (!req.user) {
+  const user = req.user as any;
+  if (!user || !user.userId) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'User ID not found in request');
   }
-  const result = await UserService.getAllProjectsByUserId(((req.user as TUser)._id as any).toString());
+  const result = await UserService.getAllProjectsByUserId(user.userId);
 
   if (!result) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'No Projects found');
@@ -392,9 +389,10 @@ const getAllManagerByCompanyId = catchAsync(async (req, res) => {
 
 const getAllProjectSupervisorsByProjectManagerId = catchAsync(
   async (req, res) => {
+    const user = req.user as any;
     const result = await User.find({
       role: 'projectSupervisor',
-      superVisorsManagerId: (req.user as TUser)?._id,
+      superVisorsManagerId: user.userId,
     }).select('');
     sendResponse(res, {
       code: StatusCodes.OK,
@@ -422,7 +420,6 @@ export const UserController = {
   getAllManagerByCompanyId,
   inviteSupervisors,
   getMySupervisors,
-  // NEW EXPORTS
   cancelSupervisorInvitation,
   removeSupervisorFromCompany,
 };

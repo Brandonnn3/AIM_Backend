@@ -9,14 +9,14 @@ const getALLNotification = catchAsync(async (req, res) => {
   const filters = pick(req.query, notificationFilters);
   const options = pick(req.query, ['sortBy', 'limit', 'page', 'populate']);
 
-  // ✨ FIX: Comment out the userId to fetch all notifications for the feed.
-  // const userId = req.user.userId; 
+  // ✅ DEFINITIVE FIX: Use the userId from the authenticated user's token
+  // to fetch only their specific notifications.
+  const userId = (req.user as any).userId; 
   
   const result = await NotificationService.getALLNotification(
     filters,
     options,
-    // Pass an empty string or null instead of the userId
-    '' 
+    userId 
   );
   sendResponse(res, {
     code: StatusCodes.OK,
@@ -74,7 +74,7 @@ const deleteNotification = catchAsync(async (req, res) => {
 });
 
 const clearAllNotification = catchAsync(async (req, res) => {
-  const userId = req.user.userId;
+  const userId = (req.user as any).userId;
   await NotificationService.clearAllNotification(userId);
   sendResponse(res, {
     code: StatusCodes.OK,

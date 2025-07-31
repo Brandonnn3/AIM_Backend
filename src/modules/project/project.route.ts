@@ -28,13 +28,14 @@ router
 router
   .route('/getAllImagesOfAllNotesOfAProjectId')
   .get(
-    auth('common'),
+    // ✅ DEFINITIVE FIX: Changed auth('common') to explicitly allow the correct roles.
+    auth('projectManager', 'projectSupervisor'),
     NoteController.getAllimagesOrDocumentOFnoteOrTaskOrProjectByDateAndProjectId
   );
 
 // UPLOAD PROJECT DOCUMENT  
 router.route('/upload-document').post(
-  auth('common'),
+  auth('projectManager', 'projectSupervisor'), // Also allow supervisors to upload
   upload.fields([
     { name: 'attachments', maxCount: 1 },
   ]),
@@ -58,7 +59,7 @@ router
 // GET A SINGLE PROJECT BY ITS ID
 router
   .route('/:projectId')
-  .get(auth('projectManager'), ProjectController.getAProject);
+  .get(auth('projectManager', 'projectSupervisor'), ProjectController.getAProject);
 
 // UPDATE A PROJECT
 router
@@ -66,7 +67,7 @@ router
   .put(auth('projectManager'), ProjectController.updateById);
 
 // GET ALL PROJECTS (GENERAL)
-router.route('/').get(auth('common'), ProjectController.getAllProject);
+router.route('/').get(auth('projectManager', 'projectSupervisor'), ProjectController.getAllProject);
 
 // CREATE A NEW PROJECT
 router.route('/create').post(
@@ -82,7 +83,7 @@ router.route('/create').post(
 // GET PROJECT ACTIVITY DATES
 router
   .route('/:projectId/activity-dates')
-  .get(auth('common'), ProjectController.getProjectActivityDates);
+  .get(auth('projectManager', 'projectSupervisor'), ProjectController.getProjectActivityDates);
 
 // SOFT DELETE A PROJECT
 router

@@ -8,18 +8,24 @@ const companySchema = new Schema<ICompany>(
       type: String,
       required: [true, 'name is required'],
     },
+    // ✅ ADDED new fields for company details.
+    address: { type: String },
+    city: { type: String },
+    state: { type: String },
+    zipCode: { type: String },
+    phoneNumber: { type: String },
+    logo: { type: String },
   },
   { timestamps: true }
 );
 
 companySchema.plugin(paginate);
 
-// Use transform to rename _id to _projectId
 companySchema.set('toJSON', {
   transform: function (doc: any, ret: any, options: any) {
-    ret.id = ret._id; // Create a new 'id' field
-    delete ret._id;   // Delete the original _id
-    delete ret.__v;  // Delete the __v
+    ret.id = ret._id;
+    delete ret._id;
+   delete ret.__v;
     return ret;
   },
 });

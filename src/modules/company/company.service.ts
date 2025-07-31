@@ -4,13 +4,37 @@ import { Company } from './company.model';
 import { TUser } from '../user/user.interface';
 import ApiError from '../../errors/ApiError';
 import { StatusCodes } from 'http-status-codes';
+import { ICompany } from './company.interface';
 
 export class CompanyService extends GenericService<typeof Company> {
   constructor() {
     super(Company);
   }
 
-  // This function creates the link between a user and a company.
+  async getCompanyByManagerId(userId: string): Promise<ICompany | null> {
+    // ✅ DEFINITIVE FIX: The .populate() now correctly fetches the full company document.
+    const userCompanyLink = await UserCompany.findOne({ userId: userId })
+      .populate({
+        path: 'companyId',
+        model: 'Company' 
+      });
+
+    if (!userCompanyLink) {
+      throw new ApiError(StatusCodes.NOT_FOUND, 'Manager is not associated with any company.');
+    }
+    return userCompanyLink.companyId as unknown as ICompany;
+  }
+
+  async updateCompanyById(companyId: string, payload: Partial<ICompany>, userId: string): Promise<ICompany | null> {
+    const userCompanyLink = await UserCompany.findOne({ userId: userId });
+    if (!userCompanyLink || userCompanyLink.companyId.toString() !== companyId) {
+      throw new ApiError(StatusCodes.FORBIDDEN, 'You do not have permission to edit this company.');
+    }
+
+    const updatedCompany = await this.updateById(companyId, payload as any);
+    return updatedCompany;
+  }
+
   async joinCompany(user: TUser, companyId: string) {
     const existingLink = await UserCompany.findOne({ userId: user._id });
     if (existingLink) {
@@ -36,16 +60,12 @@ export class CompanyService extends GenericService<typeof Company> {
     return userCompany;
   }
 
-  // This is the primary function for the new manager onboarding.
   async setupCompanyProfile(companyProfileData: any, user: TUser) {
-    // MODIFIED: This check is now at the very beginning.
-    // 1. Check if the user is already linked to any company.
     const existingLink = await UserCompany.findOne({ userId: user._id });
     if (existingLink) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'This user account is already part of a company.');
     }
 
-    // 2. Check if a company with this name already exists
     const existingCompany = await Company.findOne({
       name: { $regex: new RegExp(`^${companyProfileData.name}$`, 'i') },
     });
@@ -54,13 +74,11 @@ export class CompanyService extends GenericService<typeof Company> {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'A company with this name already exists.');
     }
 
-    // 3. Create the new company with all the profile data
     const newCompany = await Company.create(companyProfileData);
     if (!newCompany) {
         throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to create the company.');
     }
 
-    // 4. Link the user to the new company
     const userCompanyLink = await this.joinCompany(user, newCompany._id.toString());
 
     return { newCompany, userCompanyLink };

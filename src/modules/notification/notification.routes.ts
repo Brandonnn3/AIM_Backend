@@ -6,18 +6,20 @@ const router = Router();
 
 router
   .route('/clear-all-notifications')
-  .delete(auth('common'), NotificationController.clearAllNotification);
+  .delete(auth('projectManager', 'projectSupervisor'), NotificationController.clearAllNotification);
 router
   .route('/admin-notifications')
   .get(auth('admin'), NotificationController.getAdminNotifications);
+
+// ✅ DEFINITIVE FIX: Changed auth('common') to explicitly allow the correct roles.
 router
   .route('/')
-  .get(auth('common'), NotificationController.getALLNotification);
+  .get(auth('projectManager', 'projectSupervisor'), NotificationController.getALLNotification);
 
 router
   .route('/:id')
-  .get(auth('common'), NotificationController.getSingleNotification)
-  .patch(auth('common'), NotificationController.viewNotification)
-  .delete(auth('common'), NotificationController.deleteNotification);
+  .get(auth('projectManager', 'projectSupervisor'), NotificationController.getSingleNotification)
+  .patch(auth('projectManager', 'projectSupervisor'), NotificationController.viewNotification)
+  .delete(auth('projectManager', 'projectSupervisor'), NotificationController.deleteNotification);
 
 export const NotificationRoutes = router;

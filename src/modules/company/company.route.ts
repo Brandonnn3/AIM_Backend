@@ -4,18 +4,19 @@ import { CompanyController } from './company.controller';
 
 const router = express.Router();
 
-// NEW: This is the endpoint for the first step of the manager onboarding wizard.
+// ✅ NEW: Route for a manager to get their own company's details.
+router.route('/my-company').get(
+    auth('projectManager'),
+    CompanyController.getMyCompany
+);
+
 router.route('/setup-profile').post(
     auth('projectManager'), 
     CompanyController.setupCompanyProfile
 );
 
-// TODO: We will add a new route here for sending supervisor invites later.
-
-
-// --- Other existing routes ---
-
-router.route('/update/:contractId').put(
+// ✅ UPDATED: Changed param from :contractId to :companyId for clarity.
+router.route('/update/:companyId').put(
   auth('projectManager'),
   CompanyController.updateById
 );
@@ -27,8 +28,9 @@ router.route('/getByName').post(
     CompanyController.getACompanyByName
 );
 
+// ✅ UPDATED: Changed param from :contractId to :companyId.
 router
-  .route('/delete/:contractId')
+  .route('/delete/:companyId')
   .delete(auth('projectManager'), CompanyController.deleteById);
 
 export const CompanyRoutes = router;
