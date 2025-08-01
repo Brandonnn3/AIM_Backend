@@ -4,14 +4,18 @@ import { Server } from 'socket.io';
 import app from './app';
 import { errorLogger, logger } from './shared/logger';
 import { socketHelper } from './helpers/socket';
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { config } from './config';
 
-// ✨ ADD THESE IMPORTS FOR THE SCHEDULED JOB ✨
 import cron from 'node-cron';
 import { ProjectService } from './modules/project/project.service';
 import { NotificationService } from './modules/notification/notification.services';
 import { INotification } from './modules/notification/notification.interface';
 import { Types } from 'mongoose';
+// ✅ ADDED the 'fs' module to read the certificate file.
+import fs from 'fs';
 
 //uncaught exception
 process.on('uncaughtException', error => {
@@ -23,8 +27,21 @@ let server: any;
 let io : Server | undefined;
 async function main() {
   try {
-    await mongoose.connect(config.database.mongoUrl as string);
+    const mongoUrl = process.env.MONGODB_URL;
+    if (!mongoUrl) {
+      throw new Error('MONGODB_URL is not defined in your .env file.');
+    }
+
+    // ✅ DEFINITIVE FIX: Provide SSL options directly to Mongoose.
+    // This is more reliable than parsing them from the connection string.
+    const mongooseOptions = {
+      tls: true,
+      tlsCAFile: `${__dirname}/../global-bundle.pem`, // Assumes the file is in the project root
+    };
+
+    await mongoose.connect(mongoUrl, mongooseOptions);
     logger.info(colors.green('🚀 Database connected successfully'));
+    
     const port =
       typeof config.port === 'number' ? config.port : Number(config.port);
     server = app.listen(port, config.backend.ip as string, () => {
@@ -46,9 +63,8 @@ async function main() {
     global.io = io;
 
     // =================================================================
-    // ✨ ADDED THE SCHEDULED JOB FOR DAILY DEADLINE CHECKS ✨
+    // ✨ SCHEDULED JOB FOR DAILY DEADLINE CHECKS ✨
     // =================================================================
-    // This schedule runs every day at 9:00 AM ('0 9 * * *').
     cron.schedule('0 9 * * *', async () => {
       console.log('Running daily check for project deadlines...');
       
@@ -86,14 +102,14 @@ async function main() {
       }
     }, {
       scheduled: true,
-      timezone: "America/New_York" // Adjust to your server's timezone
+      timezone: "America/New_York"
     });
     // =================================================================
     // END OF SCHEDULED JOB BLOCK
     // =================================================================
 
   } catch (error) {
-    errorLogger.error(colors.red('🤢 Failed to connect Database'));
+    errorLogger.error(colors.red('🤢 Failed to connect Database'), error);
   }
 
   //handle unhandledRejection
@@ -112,10 +128,3 @@ async function main() {
 main();
 
 export {io};
-//SIGTERM
-// process.on('SIGTERM', () => {
-//   logger.info('SIGTERM IS RECEIVE');
-//   if (server) {
-//     server.close();
-//   }
-// });
