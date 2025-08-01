@@ -32,6 +32,8 @@ async function main() {
       throw new Error('MONGODB_URL is not defined in your .env file.');
     }
 
+    console.log('--- ATTEMPTING TO CONNECT TO:', mongoUrl, '---'); 
+
     // ✅ DEFINITIVE FIX: Provide SSL options directly to Mongoose.
     // This is more reliable than parsing them from the connection string.
     const mongooseOptions = {

@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import ApiError from '../errors/ApiError';
 import { StatusCodes } from 'http-status-codes';
 
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = process.env.NODE_ENV === 'production';
 
 const s3Config: S3ClientConfig = {
     region: process.env.AWS_REGION,
@@ -23,7 +23,7 @@ if (isDevelopment) {
 }
 
 export const s3Client = new S3Client(s3Config);
-const bucketName = isDevelopment ? process.env.MINIO_BUCKET_NAME : process.env.AWS_S3_BUCKET_NAME;
+const bucketName = isDevelopment ? process.env.MINIO_BUCKET_NAME : process.env.AWS_BUCKET_NAME;
 
 interface UploadFileParams {
     fileBuffer: Buffer;
