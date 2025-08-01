@@ -5,12 +5,31 @@ import sendResponse from '../../shared/sendResponse';
 import ApiError from '../../errors/ApiError';
 import { UserCustomService, UserService } from './user.service';
 import { User } from './user.model';
-import { Types } from 'mongoose';
+import { Types, Schema, model, Document } from 'mongoose'; // Added Document import
 import { AttachmentService } from '../attachments/attachment.service';
 import { FolderName } from '../../enums/folderNames';
 import { AttachedToType } from '../attachments/attachment.constant';
 import { UserCompany } from '../userCompany/userCompany.model';
 import { TUser } from '../user/user.interface';
+// import { Connection } from '../connection/connection.model'; // Removed the import to avoid the error
+
+// --- Temporary fix for missing Connection model ---
+// In a full project, this would be in its own file.
+// This defines the schema for the connection collection.
+interface IConnection extends Document {
+  senderId: Types.ObjectId;
+  receiverId: Types.ObjectId;
+  status: string;
+}
+
+const connectionSchema = new Schema<IConnection>({
+  senderId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  receiverId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  status: { type: String, required: true },
+});
+
+const Connection = model<IConnection>('connections', connectionSchema);
+
 
 const userCustomService = new UserCustomService();
 const attachmentService = new AttachmentService();
@@ -18,7 +37,7 @@ const attachmentService = new AttachmentService();
 const getMySupervisors = catchAsync(async (req, res) => {
   const manager = req.user as any; // This is the decoded token payload
 
-  // ✅ DEFINITIVE FIX: Use `userId` from the token, not `_id`.
+  // Use userId from the token
   if (!manager || !manager.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'Manager not authenticated.');
   }
@@ -87,6 +106,10 @@ const createAdminOrSuperAdmin = catchAsync(async (req, res) => {
   });
 });
 
+/**
+ * Retrieves all users with pagination, manually merging connection statuses
+ * to be compatible with DocumentDB's aggregation limitations.
+ */
 const getAllUsers = catchAsync(async (req, res) => {
   const user = req.user as any;
   const currentUserId = new Types.ObjectId(user.userId);
@@ -94,97 +117,56 @@ const getAllUsers = catchAsync(async (req, res) => {
   const limit = parseInt(req.query.limit as string) || 10;
   const skip = (page - 1) * limit;
 
-  const aggregationPipeline = [
-    {
-      $match: {
-        isDeleted: false,
-      },
-    },
-    {
-      $lookup: {
-        from: 'connections',
-        let: { targetUserId: '$_id' },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $or: [
-                  {
-                    $and: [
-                      { $eq: ['$senderId', currentUserId] },
-                      { $eq: ['$receiverId', '$$targetUserId'] },
-                    ],
-                  },
-                  {
-                    $and: [
-                      { $eq: ['$senderId', '$$targetUserId'] },
-                      { $eq: ['$receiverId', currentUserId] },
-                    ],
-                  },
-                ],
-              },
-            },
-          },
-        ],
-        as: 'connection',
-      },
-    },
-    {
-      $addFields: {
-        connectionStatus: {
-          $cond: {
-            if: { $gt: [{ $size: '$connection' }, 0] },
-            then: {
-              $let: {
-                vars: { conn: { $arrayElemAt: ['$connection', 0] } },
-                in: {
-                  $switch: {
-                    branches: [
-                      {
-                        case: { $eq: ['$$conn.status', 'accepted'] },
-                        then: 'connected',
-                      },
-                      {
-                        case: { $eq: ['$$conn.status', 'pending'] },
-                        then: 'pending',
-                      },
-                      {
-                        case: { $eq: ['$$conn.status', 'rejected'] },
-                        then: 'rejected',
-                      },
-                    ],
-                    default: 'not-connected',
-                  },
-                },
-              },
-            },
-            else: 'not-connected',
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        password: 0,
-        isDeleted: 0,
-        failedLoginAttempts: 0,
-        lockUntil: 0,
-      },
-    },
-    { $skip: skip },
-    { $limit: limit },
-  ];
+  // --- STEP 1: Fetch users first (without connection details) ---
+  // Using .lean() for faster processing
+  const users = await User.find({
+    isDeleted: false,
+    _id: { $ne: currentUserId }, // Exclude current user from list
+  })
+  .select('-password -isDeleted -failedLoginAttempts -lockUntil')
+  .skip(skip)
+  .limit(limit)
+  .lean();
 
-  const users = await User.aggregate(aggregationPipeline).exec();
+  const userIds = users.map(u => u._id);
 
+  // --- STEP 2: Fetch connection statuses for these users in a separate query ---
+  const connections = await Connection.find({
+    $or: [
+      { senderId: { $in: userIds }, receiverId: currentUserId },
+      { senderId: currentUserId, receiverId: { $in: userIds } },
+    ],
+  }).lean();
+
+  // --- STEP 3: Map connections to a more usable format ---
+  const connectionStatusMap = new Map();
+  connections.forEach((conn: IConnection) => {
+    let targetUserId;
+    if (conn.senderId.equals(currentUserId)) {
+      targetUserId = conn.receiverId.toString();
+    } else {
+      targetUserId = conn.senderId.toString();
+    }
+    connectionStatusMap.set(targetUserId, conn.status);
+  });
+
+  // --- STEP 4: Manually merge connection status into each user object ---
+  const usersWithConnectionStatus = users.map((user: any) => { // User might not have connections so must be any
+    const status = connectionStatusMap.get(user._id.toString()) || 'not-connected';
+    return {
+      ...user,
+      connectionStatus: status === 'accepted' ? 'connected' : status,
+    };
+  });
+
+  // Count total users for pagination metadata
   const total = await User.countDocuments({
     _id: { $ne: currentUserId },
-    role: 'mentor',
     isDeleted: false,
   });
 
   res.json({
-    data: users,
+    data: usersWithConnectionStatus,
     meta: {
       total,
       page,
