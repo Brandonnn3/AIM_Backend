@@ -5,13 +5,12 @@ import sendResponse from '../../shared/sendResponse';
 import ApiError from '../../errors/ApiError';
 import { UserCustomService, UserService } from './user.service';
 import { User } from './user.model';
-import { Types, Schema, model, Document } from 'mongoose'; // Added Document import
+import { Types, Schema, model, Document } from 'mongoose';
 import { AttachmentService } from '../attachments/attachment.service';
 import { FolderName } from '../../enums/folderNames';
 import { AttachedToType } from '../attachments/attachment.constant';
 import { UserCompany } from '../userCompany/userCompany.model';
 import { TUser } from '../user/user.interface';
-// import { Connection } from '../connection/connection.model'; // Removed the import to avoid the error
 
 // --- Temporary fix for missing Connection model ---
 // In a full project, this would be in its own file.
@@ -30,20 +29,15 @@ const connectionSchema = new Schema<IConnection>({
 
 const Connection = model<IConnection>('connections', connectionSchema);
 
-
 const userCustomService = new UserCustomService();
 const attachmentService = new AttachmentService();
 
 const getMySupervisors = catchAsync(async (req, res) => {
-  const manager = req.user as any; // This is the decoded token payload
-
-  // Use userId from the token
+  const manager = req.user as any;
   if (!manager || !manager.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'Manager not authenticated.');
   }
-
   const result = await UserService.getSupervisorsByManager(manager.userId);
-  
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -54,14 +48,10 @@ const getMySupervisors = catchAsync(async (req, res) => {
 const inviteSupervisors = catchAsync(async (req, res) => {
   const invitingManager = req.user as any;
   const { emails } = req.body;
-
   if (!invitingManager || !invitingManager.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You must be logged in to send invites.');
   }
-
-  // Pass the full user payload to the service
   const result = await UserService.inviteSupervisors(emails, invitingManager);
-  
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -72,9 +62,7 @@ const inviteSupervisors = catchAsync(async (req, res) => {
 const cancelSupervisorInvitation = catchAsync(async (req, res) => {
   const supervisorId = req.params.id;
   const manager = req.user as any;
-
   await UserService.cancelSupervisorInvitation(supervisorId, manager.userId);
-
   sendResponse(res, {
     code: StatusCodes.OK,
     message: 'Supervisor invitation canceled successfully.',
@@ -82,17 +70,14 @@ const cancelSupervisorInvitation = catchAsync(async (req, res) => {
 });
 
 const removeSupervisorFromCompany = catchAsync(async (req, res) => {
-    const supervisorId = req.params.id;
-    const manager = req.user as any;
-
-    await UserService.removeSupervisorFromCompany(supervisorId, manager.userId);
-
-    sendResponse(res, {
-        code: StatusCodes.OK,
-        message: 'Supervisor removed from company successfully.',
-    });
+  const supervisorId = req.params.id;
+  const manager = req.user as any;
+  await UserService.removeSupervisorFromCompany(supervisorId, manager.userId);
+  sendResponse(res, {
+    code: StatusCodes.OK,
+    message: 'Supervisor removed from company successfully.',
+  });
 });
-
 
 const createAdminOrSuperAdmin = catchAsync(async (req, res) => {
   const payload = req.body;
@@ -106,10 +91,6 @@ const createAdminOrSuperAdmin = catchAsync(async (req, res) => {
   });
 });
 
-/**
- * Retrieves all users with pagination, manually merging connection statuses
- * to be compatible with DocumentDB's aggregation limitations.
- */
 const getAllUsers = catchAsync(async (req, res) => {
   const user = req.user as any;
   const currentUserId = new Types.ObjectId(user.userId);
@@ -117,11 +98,9 @@ const getAllUsers = catchAsync(async (req, res) => {
   const limit = parseInt(req.query.limit as string) || 10;
   const skip = (page - 1) * limit;
 
-  // --- STEP 1: Fetch users first (without connection details) ---
-  // Using .lean() for faster processing
   const users = await User.find({
     isDeleted: false,
-    _id: { $ne: currentUserId }, // Exclude current user from list
+    _id: { $ne: currentUserId },
   })
   .select('-password -isDeleted -failedLoginAttempts -lockUntil')
   .skip(skip)
@@ -130,7 +109,6 @@ const getAllUsers = catchAsync(async (req, res) => {
 
   const userIds = users.map(u => u._id);
 
-  // --- STEP 2: Fetch connection statuses for these users in a separate query ---
   const connections = await Connection.find({
     $or: [
       { senderId: { $in: userIds }, receiverId: currentUserId },
@@ -138,7 +116,6 @@ const getAllUsers = catchAsync(async (req, res) => {
     ],
   }).lean();
 
-  // --- STEP 3: Map connections to a more usable format ---
   const connectionStatusMap = new Map();
   connections.forEach((conn: IConnection) => {
     let targetUserId;
@@ -150,8 +127,7 @@ const getAllUsers = catchAsync(async (req, res) => {
     connectionStatusMap.set(targetUserId, conn.status);
   });
 
-  // --- STEP 4: Manually merge connection status into each user object ---
-  const usersWithConnectionStatus = users.map((user: any) => { // User might not have connections so must be any
+  const usersWithConnectionStatus = users.map((user: any) => {
     const status = connectionStatusMap.get(user._id.toString()) || 'not-connected';
     return {
       ...user,
@@ -159,7 +135,6 @@ const getAllUsers = catchAsync(async (req, res) => {
     };
   });
 
-  // Count total users for pagination metadata
   const total = await User.countDocuments({
     _id: { $ne: currentUserId },
     isDeleted: false,
@@ -188,11 +163,9 @@ const getSingleUser = catchAsync(async (req, res) => {
 
 const updateProfile = catchAsync(async (req, res) => {
   const { userId } = req.params;
-  
   if (!userId) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'User ID is required.');
   }
-
   if (req.file) {
     const attachmentResult = await attachmentService.uploadSingleAttachment(
       req.file,
@@ -200,14 +173,11 @@ const updateProfile = catchAsync(async (req, res) => {
       req.user as any,
       'user'
     );
-
     req.body.profileImage = {
       imageUrl: attachmentResult.attachment,
     };
   }
-
   const result = await UserService.updateMyProfile(userId, req.body);
-  
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -227,7 +197,6 @@ const updateProfileImage = catchAsync(async (req, res) => {
       user,
       'user'
     );
-
     req.body.profileImage = {
       imageUrl: attachmentResult.attachment,
     };
