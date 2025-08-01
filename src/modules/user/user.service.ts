@@ -251,7 +251,8 @@ const updateProfileImage = async (
 };
 
 const getMyProfile = async (userId: string): Promise<TUser | null> => {
-  const result = await User.findById(userId);
+  // --- FIX: Explicitly select the necessary fields for the profile screen ---
+  const result = await User.findById(userId).select('fname lname email profileImage address phoneNumber');
   if (!result) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'User not found');
   }
