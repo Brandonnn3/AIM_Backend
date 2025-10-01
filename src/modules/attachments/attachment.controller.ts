@@ -54,35 +54,40 @@ const createAttachment = catchAsync(async (req, res) => {
 
   const projectNameAndSuperVisorId = await Project.findById(
     req.body.projectId
-  ).select('projectSuperVisorId projectName projectManagerId');
+  ).select('projectSuperVisorIds projectName projectManagerId');
 
-  if (
+if (
     projectNameAndSuperVisorId &&
-    projectNameAndSuperVisorId.projectSuperVisorId
-  ) {
-    const notificationPayload: INotification = {
-      title: `New attachment of ${projectNameAndSuperVisorId.projectName} ${noteOrTaskOrProject} has been uploaded by ${(user as any).fname}`,
-      receiverId: projectNameAndSuperVisorId.projectSuperVisorId,
-      notificationFor: 'attachment',
-      role: UploaderRole.projectSupervisor,
-      isDeleted: false,
-    };
+    projectNameAndSuperVisorId.projectSuperVisorIds &&
+    projectNameAndSuperVisorId.projectSuperVisorIds.length > 0 // Ensure array is not empty
+) {
+    // Loop through each supervisor ID
+    for (const supervisorId of projectNameAndSuperVisorId.projectSuperVisorIds) {
+        const notificationPayload: INotification = {
+            title: `New attachment of ${projectNameAndSuperVisorId.projectName} ${noteOrTaskOrProject} has been uploaded by ${(user as any).fname}`,
+            receiverId: supervisorId, // Pass a single ObjectId here
+            notificationFor: 'attachment',
+            role: UploaderRole.projectSupervisor,
+            isDeleted: false,
+        };
 
-    const notification = await NotificationService.addNotification(
-      notificationPayload
-    );
+        const notification = await NotificationService.addNotification(
+            notificationPayload
+        );
 
-    if (io) {
-      io.to(projectNameAndSuperVisorId.projectSuperVisorId.toString()).emit(
-        'newNotification',
-        {
-          code: StatusCodes.OK,
-          message: 'New notification',
-          data: notification,
+        if (io) {
+            // If socket.io is set up to join rooms by user ID (as a string)
+            io.to(supervisorId.toString()).emit(
+                'newNotification',
+                {
+                    code: StatusCodes.OK,
+                    message: 'New notification',
+                    data: notification,
+                }
+            );
         }
-      );
     }
-  }
+}
 
   sendResponse(res, {
     code: StatusCodes.OK,

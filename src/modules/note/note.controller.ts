@@ -32,10 +32,10 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
   }
   const userId = user._id.toString();
   const projectManagerId = project.projectManagerId?.toString();
-  const projectSupervisorId = project.projectSuperVisorId
-    ? project.projectSuperVisorId.toString()
+  const projectSupervisorIds = project.projectSuperVisorIds
+    ? project.projectSuperVisorIds.toString()
     : null;
-  if (userId !== projectManagerId && userId !== projectSupervisorId) {
+  if (userId !== projectManagerId && userId !== projectSupervisorIds) {
     throw new ApiError(
       StatusCodes.FORBIDDEN,
       'You are not authorized to add notes to this project.'

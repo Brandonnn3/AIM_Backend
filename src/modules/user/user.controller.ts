@@ -5,26 +5,39 @@ import sendResponse from '../../shared/sendResponse';
 import ApiError from '../../errors/ApiError';
 import { UserCustomService, UserService } from './user.service';
 import { User } from './user.model';
-import { Types } from 'mongoose';
+import { Types, Schema, model, Document } from 'mongoose';
 import { AttachmentService } from '../attachments/attachment.service';
 import { FolderName } from '../../enums/folderNames';
 import { AttachedToType } from '../attachments/attachment.constant';
 import { UserCompany } from '../userCompany/userCompany.model';
 import { TUser } from '../user/user.interface';
 
+// --- Temporary fix for missing Connection model ---
+// In a full project, this would be in its own file.
+// This defines the schema for the connection collection.
+interface IConnection extends Document {
+  senderId: Types.ObjectId;
+  receiverId: Types.ObjectId;
+  status: string;
+}
+
+const connectionSchema = new Schema<IConnection>({
+  senderId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  receiverId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  status: { type: String, required: true },
+});
+
+const Connection = model<IConnection>('connections', connectionSchema);
+
 const userCustomService = new UserCustomService();
 const attachmentService = new AttachmentService();
 
 const getMySupervisors = catchAsync(async (req, res) => {
-  const manager = req.user as any; // This is the decoded token payload
-
-  // ✅ DEFINITIVE FIX: Use `userId` from the token, not `_id`.
+  const manager = req.user as any;
   if (!manager || !manager.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'Manager not authenticated.');
   }
-
   const result = await UserService.getSupervisorsByManager(manager.userId);
-  
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -35,14 +48,10 @@ const getMySupervisors = catchAsync(async (req, res) => {
 const inviteSupervisors = catchAsync(async (req, res) => {
   const invitingManager = req.user as any;
   const { emails } = req.body;
-
   if (!invitingManager || !invitingManager.userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You must be logged in to send invites.');
   }
-
-  // Pass the full user payload to the service
   const result = await UserService.inviteSupervisors(emails, invitingManager);
-  
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -53,9 +62,7 @@ const inviteSupervisors = catchAsync(async (req, res) => {
 const cancelSupervisorInvitation = catchAsync(async (req, res) => {
   const supervisorId = req.params.id;
   const manager = req.user as any;
-
   await UserService.cancelSupervisorInvitation(supervisorId, manager.userId);
-
   sendResponse(res, {
     code: StatusCodes.OK,
     message: 'Supervisor invitation canceled successfully.',
@@ -63,17 +70,14 @@ const cancelSupervisorInvitation = catchAsync(async (req, res) => {
 });
 
 const removeSupervisorFromCompany = catchAsync(async (req, res) => {
-    const supervisorId = req.params.id;
-    const manager = req.user as any;
-
-    await UserService.removeSupervisorFromCompany(supervisorId, manager.userId);
-
-    sendResponse(res, {
-        code: StatusCodes.OK,
-        message: 'Supervisor removed from company successfully.',
-    });
+  const supervisorId = req.params.id;
+  const manager = req.user as any;
+  await UserService.removeSupervisorFromCompany(supervisorId, manager.userId);
+  sendResponse(res, {
+    code: StatusCodes.OK,
+    message: 'Supervisor removed from company successfully.',
+  });
 });
-
 
 const createAdminOrSuperAdmin = catchAsync(async (req, res) => {
   const payload = req.body;
@@ -94,97 +98,50 @@ const getAllUsers = catchAsync(async (req, res) => {
   const limit = parseInt(req.query.limit as string) || 10;
   const skip = (page - 1) * limit;
 
-  const aggregationPipeline = [
-    {
-      $match: {
-        isDeleted: false,
-      },
-    },
-    {
-      $lookup: {
-        from: 'connections',
-        let: { targetUserId: '$_id' },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $or: [
-                  {
-                    $and: [
-                      { $eq: ['$senderId', currentUserId] },
-                      { $eq: ['$receiverId', '$$targetUserId'] },
-                    ],
-                  },
-                  {
-                    $and: [
-                      { $eq: ['$senderId', '$$targetUserId'] },
-                      { $eq: ['$receiverId', currentUserId] },
-                    ],
-                  },
-                ],
-              },
-            },
-          },
-        ],
-        as: 'connection',
-      },
-    },
-    {
-      $addFields: {
-        connectionStatus: {
-          $cond: {
-            if: { $gt: [{ $size: '$connection' }, 0] },
-            then: {
-              $let: {
-                vars: { conn: { $arrayElemAt: ['$connection', 0] } },
-                in: {
-                  $switch: {
-                    branches: [
-                      {
-                        case: { $eq: ['$$conn.status', 'accepted'] },
-                        then: 'connected',
-                      },
-                      {
-                        case: { $eq: ['$$conn.status', 'pending'] },
-                        then: 'pending',
-                      },
-                      {
-                        case: { $eq: ['$$conn.status', 'rejected'] },
-                        then: 'rejected',
-                      },
-                    ],
-                    default: 'not-connected',
-                  },
-                },
-              },
-            },
-            else: 'not-connected',
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        password: 0,
-        isDeleted: 0,
-        failedLoginAttempts: 0,
-        lockUntil: 0,
-      },
-    },
-    { $skip: skip },
-    { $limit: limit },
-  ];
+  const users = await User.find({
+    isDeleted: false,
+    _id: { $ne: currentUserId },
+  })
+  .select('-password -isDeleted -failedLoginAttempts -lockUntil')
+  .skip(skip)
+  .limit(limit)
+  .lean();
 
-  const users = await User.aggregate(aggregationPipeline).exec();
+  const userIds = users.map(u => u._id);
+
+  const connections = await Connection.find({
+    $or: [
+      { senderId: { $in: userIds }, receiverId: currentUserId },
+      { senderId: currentUserId, receiverId: { $in: userIds } },
+    ],
+  }).lean();
+
+  const connectionStatusMap = new Map();
+  connections.forEach((conn: IConnection) => {
+    let targetUserId;
+    if (conn.senderId.equals(currentUserId)) {
+      targetUserId = conn.receiverId.toString();
+    } else {
+      targetUserId = conn.senderId.toString();
+    }
+    connectionStatusMap.set(targetUserId, conn.status);
+  });
+
+  const usersWithConnectionStatus = users.map((user: any) => {
+    const status = connectionStatusMap.get(user._id.toString()) || 'not-connected';
+    return {
+      ...user,
+      connectionStatus: status === 'accepted' ? 'connected' : status,
+    };
+  });
 
   const total = await User.countDocuments({
     _id: { $ne: currentUserId },
-    role: 'mentor',
     isDeleted: false,
   });
 
   res.json({
-    data: users,
+    data: usersWithConnectionStatus,
     meta: {
       total,
       page,
@@ -206,11 +163,9 @@ const getSingleUser = catchAsync(async (req, res) => {
 
 const updateProfile = catchAsync(async (req, res) => {
   const { userId } = req.params;
-  
   if (!userId) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'User ID is required.');
   }
-
   if (req.file) {
     const attachmentResult = await attachmentService.uploadSingleAttachment(
       req.file,
@@ -218,14 +173,11 @@ const updateProfile = catchAsync(async (req, res) => {
       req.user as any,
       'user'
     );
-
     req.body.profileImage = {
       imageUrl: attachmentResult.attachment,
     };
   }
-
   const result = await UserService.updateMyProfile(userId, req.body);
-  
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -245,7 +197,6 @@ const updateProfileImage = catchAsync(async (req, res) => {
       user,
       'user'
     );
-
     req.body.profileImage = {
       imageUrl: attachmentResult.attachment,
     };

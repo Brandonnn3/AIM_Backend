@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { GenericService } from '../Generic Service/generic.services';
 import { Project } from './project.model';
 import ApiError from '../../errors/ApiError';
@@ -6,6 +6,14 @@ import { StatusCodes } from 'http-status-codes';
 import { Attachment } from '../attachments/attachment.model';
 import { Note } from '../note/note.model';
 import { Task } from '../task/task.model';
+import { IProject } from './project.interface';
+
+// Define an interface for the lean project document to fix TS7006 errors.
+// This matches the shape of the plain JavaScript objects returned by the .lean() query.
+interface IProjectLean extends Omit<IProject, '_id' | 'projectSuperVisorIds'> {
+  _id: Types.ObjectId;
+  projectSuperVisorIds: Types.ObjectId[];
+}
 
 export class ProjectService extends GenericService<typeof Project> {
   constructor() {
@@ -16,82 +24,117 @@ export class ProjectService extends GenericService<typeof Project> {
     return super.updateById(id, payload);
   }
 
+  /**
+   * Retrieves all projects for a given project manager, including a count of open tasks.
+   * This method uses multiple queries to bypass DocumentDB's advanced $lookup limitations.
+   * @param managerId The ID of the project manager.
+   * @returns An array of projects with an added openTasksCount property.
+   */
   async getAllProjectsByManagerId(managerId: string) {
     if (!mongoose.Types.ObjectId.isValid(managerId)) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid manager ID');
     }
 
-    const projects = await this.model.aggregate([
-      { $match: { projectManagerId: new mongoose.Types.ObjectId(managerId), isDeleted: false } },
+    // --- STEP 1: Fetch Projects first as lean objects ---
+    // The .lean() method returns plain JavaScript objects, which are faster to process
+    // and can be manually manipulated before passing them back to Mongoose for population.
+    const projects = await this.model.find({ 
+      projectManagerId: new mongoose.Types.ObjectId(managerId), 
+      isDeleted: false 
+    }).lean();
+
+    // Get all the project IDs from the fetched projects
+    const projectIds = projects.map((p: IProjectLean) => p._id);
+
+    // --- STEP 2: Get open task counts for all projects in a single aggregation query ---
+    const openTaskCounts = await Task.aggregate([
       {
-        $lookup: {
-          from: 'tasks', // The name of the tasks collection in MongoDB
-          let: { projectId: '$_id' },
-          pipeline: [
-            { 
-              $match: { 
-                $expr: { $eq: ['$projectId', '$$projectId'] },
-                task_status: 'open' // Only count tasks with 'open' status
-              } 
-            },
-            { $count: 'total' }
-          ],
-          as: 'openTasks'
-        }
+        $match: {
+          projectId: { $in: projectIds }, // Match tasks for the fetched projects
+          task_status: 'open',
+        },
       },
       {
-        $addFields: {
-          openTasksCount: { $ifNull: [{ $arrayElemAt: ['$openTasks.total', 0] }, 0] }
-        }
+        $group: {
+          _id: '$projectId', // Group by projectId
+          count: { $sum: 1 }, // Count open tasks per project
+        },
       },
-      { $project: { openTasks: 0 } } // Clean up the temporary field
     ]);
 
-    // We need to populate supervisor details separately after aggregation
-    await Project.populate(projects, { path: 'projectSuperVisorIds', select: 'fname lname email profileImage' });
+    // Convert the aggregation result into a map for quick lookups
+    const openTaskMap = new Map<string, number>(openTaskCounts.map(item => [item._id.toString(), item.count]));
+
+    // --- STEP 3: Manually merge the open task counts into each project object ---
+    const projectsWithCounts = projects.map((project: IProjectLean) => {
+        const count = openTaskMap.get(project._id.toString()) || 0;
+        return {
+            ...project,
+            openTasksCount: count,
+        };
+    });
+
+    // Populate supervisor details using the merged projects array
+    await Project.populate(projectsWithCounts, { 
+      path: 'projectSuperVisorIds', 
+      select: 'fname lname email profileImage' 
+    });
     
-    return projects;
+    return projectsWithCounts;
   }
 
+  /**
+   * Retrieves all projects for a given supervisor, including a count of open tasks.
+   * This method uses the same multi-query pattern to ensure DocumentDB compatibility.
+   * @param supervisorId The ID of the supervisor.
+   * @returns An array of projects with an added openTasksCount property.
+   */
   async getAllProjectsBySupervisorId(supervisorId: string) {
     if (!mongoose.Types.ObjectId.isValid(supervisorId)) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid supervisor ID');
     }
     
-    const projects = await this.model.aggregate([
-      { 
-        $match: { 
-          projectSuperVisorIds: new mongoose.Types.ObjectId(supervisorId), 
-          isDeleted: false 
-        } 
+    // --- STEP 1: Fetch Projects first as lean objects ---
+    const projects = await this.model.find({ 
+      projectSuperVisorIds: new mongoose.Types.ObjectId(supervisorId), 
+      isDeleted: false 
+    }).lean();
+
+    const projectIds = projects.map((p: IProjectLean) => p._id);
+
+    // --- STEP 2: Get open task counts for all projects in a single aggregation query ---
+    const openTaskCounts = await Task.aggregate([
+      {
+        $match: {
+          projectId: { $in: projectIds },
+          task_status: 'open',
+        },
       },
       {
-        $lookup: {
-          from: 'tasks',
-          let: { projectId: '$_id' },
-          pipeline: [
-            { 
-              $match: { 
-                $expr: { $eq: ['$projectId', '$$projectId'] },
-                task_status: 'open'
-              } 
-            },
-            { $count: 'total' }
-          ],
-          as: 'openTasks'
-        }
+        $group: {
+          _id: '$projectId',
+          count: { $sum: 1 },
+        },
       },
-      {
-        $addFields: {
-          openTasksCount: { $ifNull: [{ $arrayElemAt: ['$openTasks.total', 0] }, 0] }
-        }
-      },
-      { $project: { openTasks: 0 } }
     ]);
 
-    await Project.populate(projects, { path: 'projectSuperVisorIds', select: 'fname lname email profileImage' });
+    const openTaskMap = new Map<string, number>(openTaskCounts.map(item => [item._id.toString(), item.count]));
 
-    return projects;
+    // --- STEP 3: Manually merge the open task counts into each project object ---
+    const projectsWithCounts = projects.map((project: IProjectLean) => {
+        const count = openTaskMap.get(project._id.toString()) || 0;
+        return {
+            ...project,
+            openTasksCount: count,
+        };
+    });
+
+    await Project.populate(projectsWithCounts, { 
+      path: 'projectSuperVisorIds', 
+      select: 'fname lname email profileImage' 
+    });
+
+    return projectsWithCounts;
   }
 
   async getProjectActivityDates(projectId: string): Promise<string[]> {

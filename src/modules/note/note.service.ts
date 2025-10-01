@@ -1,4 +1,4 @@
-import mongoose, { Mongoose } from 'mongoose';
+import mongoose, { Mongoose, Types } from 'mongoose';
 import { GenericService } from '../Generic Service/generic.services';
 import { Note } from './note.model';
 import { StatusCodes } from 'http-status-codes';
@@ -51,6 +51,8 @@ export class NoteService extends GenericService<typeof Note> {
     const startOfDay = new Date(new Date(parsedDate).setHours(0, 0, 0, 0));
     const endOfDay = new Date(new Date(parsedDate).setHours(23, 59, 59, 999));
 
+    // The aggregation pipeline should be supported by DocumentDB 3.6,
+    // as it uses a basic $lookup. The error likely comes from other files.
     const notesWithAttachmentCounts = await Note.aggregate([
       {
         $match: {
@@ -88,10 +90,10 @@ export class NoteService extends GenericService<typeof Note> {
       },
     ]);
 
-    // --- FIX: Calculate totals by summing the counts from the aggregation result ---
     let totalImageCount = 0;
     let totalDocumentCount = 0;
-    notesWithAttachmentCounts.forEach(note => {
+    // --- FIX: Explicitly type the 'note' parameter to resolve TS7006 ---
+    notesWithAttachmentCounts.forEach((note: any) => {
         totalImageCount += note.imageCount;
         totalDocumentCount += note.documentCount;
     });
@@ -163,7 +165,6 @@ export class NoteService extends GenericService<typeof Note> {
       throw new ApiError(StatusCodes.NOT_FOUND, 'Invalid projectId');
     }
 
-    // --- FIX: Build the query dynamically based on provided filters ---
     const query: any = {
       projectId: new mongoose.Types.ObjectId(projectId),
     };
@@ -178,37 +179,72 @@ export class NoteService extends GenericService<typeof Note> {
       query.uploaderRole = uploaderRole;
     }
 
-    // Only add the date filter if a valid date is provided
-if (date) {
-    // --- FIX: Force UTC parsing to avoid timezone bugs ---
-    // Appending 'T00:00:00.000Z' treats the date as midnight UTC
-    const parsedDate = new Date(`${date}T00:00:00.000Z`);
+    if (date) {
+        const parsedDate = new Date(`${date}T00:00:00.000Z`);
 
-    if (!isNaN(parsedDate.getTime())) {
-        const startOfDay = new Date(parsedDate);
-        // Use setUTCHours to guarantee we're working in UTC
-        startOfDay.setUTCHours(0, 0, 0, 0);
+        if (!isNaN(parsedDate.getTime())) {
+            const startOfDay = new Date(parsedDate);
+            startOfDay.setUTCHours(0, 0, 0, 0);
 
-        const endOfDay = new Date(parsedDate);
-        endOfDay.setUTCHours(23, 59, 59, 999);
+            const endOfDay = new Date(parsedDate);
+            endOfDay.setUTCHours(23, 59, 59, 999);
 
-        query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+            query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+        }
     }
-}
 
     console.log('Executing final attachment query:', JSON.stringify(query, null, 2));
 
-    // Now, execute the dynamically built query
     const attachments = await Attachment.find(query)
       .select(
         '-projectId -updatedAt -__v -attachedToId -note -_attachmentId -attachmentType'
       )
-      .sort({ createdAt: -1 }) // Sort by most recent
+      .sort({ createdAt: -1 })
       .exec();
     
-    // The rest of the function for grouping and returning data can be simplified
-    // since we now just have a flat list of attachments.
-    // This example returns the flat list, which is easier for the client to handle.
-    return attachments;
+    const formatDate = (date: any) => {
+      const options: Intl.DateTimeFormatOptions = {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      };
+      return new Date(date).toLocaleDateString('en-US', options);
+    };
+
+    const groupedByDate = attachments.reduce((acc: any, attachment) => {
+      const dateKey = formatDate(attachment.createdAt);
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
+      }
+      acc[dateKey].push(attachment);
+      return acc;
+    }, {});
+
+    const result = Object.keys(groupedByDate).map(date => ({
+      date: date,
+      attachments: groupedByDate[date],
+    }));
+
+    return result;
+  }
+
+  async findProjectsNearingDeadline() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(today.getDate() + 7);
+    sevenDaysFromNow.setHours(23, 59, 59, 999);
+
+    const projects = await this.model.find({
+      isDeleted: false,
+      endDate: {
+        $gte: today,
+        $lte: sevenDaysFromNow,
+      },
+    }).select('projectName endDate projectManagerId');
+
+    return projects;
   }
 }
