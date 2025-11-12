@@ -7,8 +7,6 @@ import { socketHelper } from './helpers/socket';
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { config } from './config';
-
 import cron from 'node-cron';
 import { ProjectService } from './modules/project/project.service';
 import { NotificationService } from './modules/notification/notification.services';
@@ -35,8 +33,17 @@ async function main() {
       throw new Error('MONGODB_URL is not defined in environment variables');
     }
 
-    // Do NOT log the full URI (contains credentials)
+    // Do NOT log the full URI (contains credentials) — print masked for sanity check
     logger.info('Connecting to MongoDB Atlas...');
+    try {
+      const raw = process.env.MONGODB_URL || '';
+      const masked = raw.replace(
+        /(mongodb\+srv:\/\/)([^:]+):([^@]+)@/,
+        (_m, p, user) => `${p}${user}:***@`
+      );
+      logger.info(`Mongo URI (masked): ${masked}`);
+    } catch {}
+
     await mongoose.connect(mongoUrl); // Atlas works without custom TLS options
     logger.info(colors.green('🚀 Database connected successfully'));
 
@@ -55,9 +62,7 @@ async function main() {
     // ---------------------------
     io = new Server(server, {
       pingTimeout: 60000,
-      cors: {
-        origin: '*',
-      },
+      cors: { origin: '*' },
     });
     socketHelper.socket(io);
     // @ts-ignore
@@ -103,10 +108,7 @@ async function main() {
           errorLogger.error('Error during daily deadline check', err);
         }
       },
-      {
-        scheduled: true,
-        timezone: 'America/New_York',
-      }
+      { scheduled: true, timezone: 'America/New_York' }
     );
 
   } catch (error) {
