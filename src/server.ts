@@ -1,5 +1,5 @@
 import colors from 'colors';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { Server } from 'socket.io';
 import app from './app';
 import { errorLogger, logger } from './shared/logger';
@@ -13,48 +13,47 @@ import cron from 'node-cron';
 import { ProjectService } from './modules/project/project.service';
 import { NotificationService } from './modules/notification/notification.services';
 import { INotification } from './modules/notification/notification.interface';
-import { Types } from 'mongoose';
-// ✅ ADDED the 'fs' module to read the certificate file.
-import fs from 'fs';
 
-//uncaught exception
+// ---------------------------
+// Uncaught exception (sync)
+// ---------------------------
 process.on('uncaughtException', error => {
-  errorLogger.error('UnhandleException Detected', error);
+  errorLogger.error('UncaughtException detected', error);
   process.exit(1);
 });
 
 let server: any;
-let io : Server | undefined;
+let io: Server | undefined;
+
 async function main() {
   try {
+    // ---------------------------
+    // MongoDB connection
+    // ---------------------------
     const mongoUrl = process.env.MONGODB_URL;
     if (!mongoUrl) {
-      throw new Error('MONGODB_URL is not defined in your .env file.');
+      throw new Error('MONGODB_URL is not defined in environment variables');
     }
 
-    console.log('--- ATTEMPTING TO CONNECT TO:', mongoUrl, '---'); 
-
-    // ✅ DEFINITIVE FIX: Provide SSL options directly to Mongoose.
-    // This is more reliable than parsing them from the connection string.
-    const mongooseOptions = {
-      tls: true,
-      tlsCAFile: `${__dirname}/../global-bundle.pem`, // Assumes the file is in the project root
-    };
-
-    await mongoose.connect(mongoUrl, mongooseOptions);
+    // Do NOT log the full URI (contains credentials)
+    logger.info('Connecting to MongoDB Atlas...');
+    await mongoose.connect(mongoUrl); // Atlas works without custom TLS options
     logger.info(colors.green('🚀 Database connected successfully'));
-    
-    const port =
-      typeof config.port === 'number' ? config.port : Number(config.port);
-    server = app.listen(port, config.backend.ip as string, () => {
-      logger.info(
-        colors.yellow(
-          `♻️  Application listening on port ${config.backend.baseUrl}/v1`,
-        ),
-      );
+
+    // ---------------------------
+    // HTTP server (Render port)
+    // ---------------------------
+    const PORT = Number(process.env.PORT) || 6731; // fallback for local dev
+    const HOST = '0.0.0.0'; // required for Render
+
+    server = app.listen(PORT, HOST, () => {
+      logger.info(colors.yellow(`♻️  Application listening on port ${PORT}`));
     });
-    //socket
-     io = new Server(server, {
+
+    // ---------------------------
+    // Socket.io
+    // ---------------------------
+    io = new Server(server, {
       pingTimeout: 60000,
       cors: {
         origin: '*',
@@ -64,26 +63,27 @@ async function main() {
     // @ts-ignore
     global.io = io;
 
-    // =================================================================
-    // ✨ SCHEDULED JOB FOR DAILY DEADLINE CHECKS ✨
-    // =================================================================
-    cron.schedule('0 9 * * *', async () => {
-      console.log('Running daily check for project deadlines...');
-      
-      const projectService = new ProjectService();
-      try {
-        const projects = await projectService.findProjectsNearingDeadline();
-        
-        if (projects.length > 0) {
-          console.log(`Found ${projects.length} projects with deadlines approaching.`);
-          
-          for (const project of projects) {
-            const today = new Date();
-            const endDate = new Date(project.endDate);
-            const diffTime = endDate.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // ---------------------------
+    // Scheduled daily job (09:00 America/New_York)
+    // ---------------------------
+    cron.schedule(
+      '0 9 * * *',
+      async () => {
+        try {
+          logger.info('Running daily check for project deadlines...');
+          const projectService = new ProjectService();
+          const projects = await projectService.findProjectsNearingDeadline();
 
-            if (project.projectManagerId) {
+          if (projects.length > 0) {
+            logger.info(`Found ${projects.length} projects with approaching deadlines.`);
+
+            for (const project of projects) {
+              const today = new Date();
+              const endDate = new Date(project.endDate);
+              const diffTime = endDate.getTime() - today.getTime();
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+              if (project.projectManagerId) {
                 const notificationPayload: INotification = {
                   title: `Project Deadline Nearing: '${project.projectName}' is due in ${diffDays} days.`,
                   receiverId: project.projectManagerId,
@@ -94,39 +94,56 @@ async function main() {
                   isDeleted: false,
                 };
                 await NotificationService.addNotification(notificationPayload);
+              }
             }
+          } else {
+            logger.info('No projects with approaching deadlines found today.');
           }
-        } else {
-          console.log('No projects with approaching deadlines found today.');
+        } catch (err) {
+          errorLogger.error('Error during daily deadline check', err);
         }
-      } catch (error) {
-        console.error('Error during daily deadline check:', error);
+      },
+      {
+        scheduled: true,
+        timezone: 'America/New_York',
       }
-    }, {
-      scheduled: true,
-      timezone: "America/New_York"
-    });
-    // =================================================================
-    // END OF SCHEDULED JOB BLOCK
-    // =================================================================
+    );
 
   } catch (error) {
-    errorLogger.error(colors.red('🤢 Failed to connect Database'), error);
+    errorLogger.error(colors.red('🤢 Failed to start server'), error);
+    process.exit(1);
   }
 
-  //handle unhandledRejection
+  // ---------------------------
+  // Unhandled promise rejections
+  // ---------------------------
   process.on('unhandledRejection', error => {
     if (server) {
       server.close(() => {
-        errorLogger.error('UnhandledRejection Detected', error);
+        errorLogger.error('UnhandledRejection detected', error);
         process.exit(1);
       });
     } else {
       process.exit(1);
     }
   });
+
+  // (Optional) graceful shutdown on SIGTERM/SIGINT
+  const shutdown = (signal: string) => {
+    logger.info(`${signal} received. Shutting down gracefully...`);
+    if (server) {
+      server.close(() => {
+        logger.info('HTTP server closed.');
+        process.exit(0);
+      });
+    } else {
+      process.exit(0);
+    }
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 main();
 
-export {io};
+export { io };
