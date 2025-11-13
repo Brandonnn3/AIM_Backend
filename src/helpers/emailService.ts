@@ -19,12 +19,13 @@ const transporter = nodemailer.createTransport({
 if (config.environment !== 'test') {
   transporter
     .verify()
-    .then(() => logger.info(colors.cyan('📧  Connected to email server')))
-    .catch(err =>
+    .then(() => logger.info(colors.cyan('📧 Connected to email server')))
+    .catch(err => {
       logger.warn(
-        'Unable to connect to email server. Make sure you have configured the SMTP options in .env'
-      )
-    );
+        'Unable to connect to email server. Make sure you have configured the SMTP options in .env',
+      );
+      errorLogger.error('📧 [TRANSPORT VERIFY ERROR]', err);
+    });
 }
 
 // ✨ REVISED: A more robust template to match the desired design.
@@ -99,17 +100,29 @@ const createStyledEmailTemplate = (
 // Function to send email
 const sendEmail = async (values: ISendEmail) => {
   try {
+    logger.info(
+      `📧 [EMAIL] Sending email... from=${config.smtp.emailFrom} to=${values.to} subject=${values.subject}`
+    );
+
     const info = await transporter.sendMail({
       from: `${config.smtp.emailFrom}`,
       to: values.to,
       subject: values.subject,
       html: values.html,
     });
-    logger.info('Mail sent successfully', info.accepted);
+
+    logger.info(
+      `📧 [EMAIL] Mail sent successfully. messageId=${info.messageId} accepted=${JSON.stringify(
+        info.accepted,
+      )} response=${info.response}`,
+    );
   } catch (error) {
-    errorLogger.error('Email', error);
+    errorLogger.error('📧 [EMAIL ERROR] Failed to send email', error);
+    // 🔴 IMPORTANT: rethrow so /auth/register fails in dev if email is broken
+    throw error;
   }
 };
+
 
 const sendVerificationEmail = async (to: string, otp: string) => {
   const subject = 'Your Verification Code';
