@@ -1,31 +1,24 @@
 // src/helpers/emailService.ts
 
 import colors from 'colors';
-import { Resend } from 'resend'; // 💡 CHANGED: Import Resend
+import sgMail from '@sendgrid/mail'; // 💡 CHANGED: Import SendGrid
 import { errorLogger, logger } from '../shared/logger';
 import { ISendEmail } from '../types/email';
 import { config } from '../config';
 
-// 💡 CHANGED: Initialize Resend client
-// Make sure RESEND_API_KEY is in your Render environment variables
-// and mapped to config.resend.apiKey (or similar) in your config.ts
-// For simplicity, I'll use process.env directly here if config isn't set up for it.
-const resendApiKey = config.resend?.apiKey || process.env.RESEND_API_KEY;
+// 💡 CHANGED: Initialize SendGrid
+const sendgridApiKey = config.sendgrid?.apiKey || process.env.SENDGRID_API_KEY;
 
-let resend: Resend;
-
-if (resendApiKey) {
-  resend = new Resend(resendApiKey);
-  logger.info(colors.cyan('📧 Resend email client initialized'));
+if (sendgridApiKey) {
+  sgMail.setApiKey(sendgridApiKey);
+  logger.info(colors.cyan('📧 SendGrid email client initialized'));
 } else {
   logger.warn(
-    'RESEND_API_KEY not found. Email services will be disabled. Make sure you have configured the environment variable.',
+    'SENDGRID_API_KEY not found. Email services will be disabled. Make sure you have configured the environment variable.',
   );
-  // Create a mock/disabled client if you want to avoid errors
-  resend = {} as Resend; // This will fail, but highlights the config issue
 }
 
-// 💡 REMOVED: All Nodemailer transporter and transporter.verify() code
+// 💡 REMOVED: All Resend client code
 
 // Shared HTML template
 const createStyledEmailTemplate = (
@@ -36,7 +29,7 @@ const createStyledEmailTemplate = (
     'https://i.ibb.co/RpMRDQFW/AIM-20-20-Transparent-20-PNG-20-white.png';
 
   // ... (Your entire HTML template string)
-  // ... (NO CHANGES NEEDED HERE, so I'll trim it for the example)
+  // ... (NO CHANGES NEEDED HERE)
   // ...
   return `
     <!DOCTYPE html>
@@ -96,39 +89,40 @@ const createStyledEmailTemplate = (
   `;
 };
 
-// 💡 CHANGED: Core sendEmail helper now uses Resend
+// 💡 CHANGED: Core sendEmail helper now uses SendGrid
 const sendEmail = async (values: ISendEmail) => {
-  if (!resendApiKey) {
-    errorLogger.error('📧 [EMAIL ERROR] Cannot send email: RESEND_API_KEY is not configured.');
-    // Don't throw, or it might crash the app, but log it clearly.
+  if (!sendgridApiKey) {
+    errorLogger.error('📧 [EMAIL ERROR] Cannot send email: SENDGRID_API_KEY is not configured.');
     return;
   }
   
   const fromEmail = config.smtp.emailFrom || 'noreply@aimconstructionmgt.com';
+
+  // 💡 CHANGED: This is the SendGrid message object
+  const msg = {
+    to: values.to,
+    from: {
+      name: 'AIM Construction',
+      email: fromEmail, // Must be from your verified domain
+    },
+    subject: values.subject,
+    html: values.html,
+  };
 
   try {
     logger.info(
       `📧 [EMAIL] Sending email... from=${fromEmail} to=${values.to} subject=${values.subject}`,
     );
 
-    // Use the Resend API
-    const { data, error } = await resend.emails.send({
-      from: `AIM Construction <${fromEmail}>`, // Must be from your verified domain
-      to: [values.to], // Resend API expects an array
-      subject: values.subject,
-      html: values.html,
-    });
-
-    if (error) {
-      errorLogger.error('📧 [EMAIL ERROR] Resend API failed:', error);
-      throw error; // Throw the error so the caller can catch it
-    }
+    // 💡 CHANGED: Use the SendGrid API
+    await sgMail.send(msg);
 
     logger.info(
-      `📧 [EMAIL] Mail sent successfully. messageId=${data.id}`,
+      `📧 [EMAIL] Mail sent successfully via SendGrid to ${values.to}`,
     );
-  } catch (error) {
-    errorLogger.error('📧 [EMAIL ERROR] Failed to send email', error);
+  } catch (error: any) { // 💡 CHANGED: Typed 'error' as 'any' to access properties
+    // 💡 CHANGED: Better error logging for SendGrid
+    errorLogger.error('📧 [EMAIL ERROR] SendGrid API failed:', error.response?.body || error);
     // In dev/prod we WANT to know email is broken, so let the caller see the failure.
     throw error;
   }
