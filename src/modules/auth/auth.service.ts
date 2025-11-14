@@ -141,10 +141,22 @@ const login = async (email: string, reqpassword: string, fcmToken: string) => {
   if (user.failedLoginAttempts > 0) {
     user.failedLoginAttempts = 0;
     user.lockUntil = undefined;
-    await user.save();
+    // No need to await this
+    user.save();
   }
 
   const userCompany = await UserCompany.findOne({ userId: user._id });
+
+  // --- START FIX: Self-healing logic for companyId ---
+  // If the User.companyId is missing, but a UserCompany link exists, fix it.
+  if (userCompany && !user.companyId) {
+    console.log(
+      `Fixing missing companyId for user: ${user.email}. Setting to: ${userCompany.companyId}`,
+    );
+    user.companyId = userCompany.companyId;
+    await user.save();
+  }
+  // --- END FIX ---
 
   const userObject = user.toObject();
   const tokens = await TokenService.accessAndRefreshToken(userObject);
