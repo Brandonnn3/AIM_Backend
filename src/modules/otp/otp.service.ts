@@ -8,6 +8,7 @@ import {
 } from '../../helpers/emailService';
 import OTP from './otp.model';
 import { config } from '../../config';
+import { errorLogger, logger } from '../../shared/logger';
 
 const generateOTP = (): string => {
   return crypto.randomInt(100000, 999999).toString();
@@ -100,10 +101,23 @@ const createVerificationEmailOtp = async (email: string) => {
     config.otp.verifyEmailOtpExpiration.toString(),
     'verify',
   );
-  await sendVerificationEmail(email, otpDoc.otp);
+
+  // 🚀 Don't block the request on email delivery
+  sendVerificationEmail(email, otpDoc.otp)
+    .then(() => {
+      logger.info(
+        `📧 [EMAIL] Verification email queued for ${email} (otp=${otpDoc.otp})`,
+      );
+    })
+    .catch(err => {
+      errorLogger.error(
+        '📧 [EMAIL ERROR] Failed to send verification email',
+        err,
+      );
+    });
+
   return otpDoc;
 };
-
 const createResetPasswordOtp = async (email: string) => {
   const otpDoc = await createOTP(
     email,
