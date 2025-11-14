@@ -1,3 +1,5 @@
+// src/helpers/emailService.ts
+
 import colors from 'colors';
 import nodemailer from 'nodemailer';
 import { errorLogger, logger } from '../shared/logger';
@@ -5,21 +7,30 @@ import { ISendEmail } from '../types/email';
 import { config } from '../config';
 
 // Create Nodemailer transporter
+// For Resend SMTP you want roughly:
+//   host: smtp.resend.com
+//   port: 587
+//   username: 'resend'
+//   password: YOUR_RESEND_SMTP_KEY
+//
+// Those are provided via environment variables into config.smtp.*
 const transporter = nodemailer.createTransport({
   host: config.smtp.host,
   port: Number(config.smtp.port),
-  secure: false,
+  secure: Number(config.smtp.port) === 465, // true only for port 465
   auth: {
     user: config.smtp.username,
     pass: config.smtp.password,
   },
 });
 
-// Verify transporter connection
+// Verify transporter connection on startup (except in tests)
 if (config.environment !== 'test') {
   transporter
     .verify()
-    .then(() => logger.info(colors.cyan('📧 Connected to email server')))
+    .then(() =>
+      logger.info(colors.cyan('📧 Connected to email server')),
+    )
     .catch(err => {
       logger.warn(
         'Unable to connect to email server. Make sure you have configured the SMTP options in .env',
@@ -28,12 +39,13 @@ if (config.environment !== 'test') {
     });
 }
 
-// ✨ REVISED: A more robust template to match the desired design.
+// Shared HTML template
 const createStyledEmailTemplate = (
   title: string,
-  body: string
+  body: string,
 ): string => {
-  const logoUrl = 'https://i.ibb.co/RpMRDQFW/AIM-20-20-Transparent-20-PNG-20-white.png';
+  const logoUrl =
+    'https://i.ibb.co/RpMRDQFW/AIM-20-20-Transparent-20-PNG-20-white.png';
 
   return `
     <!DOCTYPE html>
@@ -59,11 +71,9 @@ const createStyledEmailTemplate = (
     <body>
       <center class="wrapper">
         <table class="main" width="100%">
-          <!-- TOP GRAY BACKGROUND -->
           <tr>
             <td class="top-part"></td>
           </tr>
-          <!-- WHITE CONTENT AREA -->
           <tr>
             <td style="padding: 0 20px;">
               <table style="width:100%; background-color:#ffffff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.07); margin-top: -70px;">
@@ -83,7 +93,6 @@ const createStyledEmailTemplate = (
               </table>
             </td>
           </tr>
-          <!-- FOOTER -->
           <tr>
             <td class="footer">
               <p>&copy; ${new Date().getFullYear()} Aim Construction. All rights reserved.</p>
@@ -96,12 +105,11 @@ const createStyledEmailTemplate = (
   `;
 };
 
-
-// Function to send email
+// Core sendEmail helper
 const sendEmail = async (values: ISendEmail) => {
   try {
     logger.info(
-      `📧 [EMAIL] Sending email... from=${config.smtp.emailFrom} to=${values.to} subject=${values.subject}`
+      `📧 [EMAIL] Sending email... from=${config.smtp.emailFrom} to=${values.to} subject=${values.subject}`,
     );
 
     const info = await transporter.sendMail({
@@ -112,17 +120,16 @@ const sendEmail = async (values: ISendEmail) => {
     });
 
     logger.info(
-      `📧 [EMAIL] Mail sent successfully. messageId=${info.messageId} accepted=${JSON.stringify(
-        info.accepted,
-      )} response=${info.response}`,
+      `📧 [EMAIL] Mail sent successfully. messageId=${
+        info.messageId
+      } accepted=${JSON.stringify(info.accepted)} response=${info.response}`,
     );
   } catch (error) {
     errorLogger.error('📧 [EMAIL ERROR] Failed to send email', error);
-    // 🔴 IMPORTANT: rethrow so /auth/register fails in dev if email is broken
+    // In dev/prod we WANT to know email is broken, so let the caller see the failure.
     throw error;
   }
 };
-
 
 const sendVerificationEmail = async (to: string, otp: string) => {
   const subject = 'Your Verification Code';
@@ -151,7 +158,7 @@ const sendResetPasswordEmail = async (to: string, otp: string) => {
 const sendSupervisorInviteEmail = async (
   to: string,
   managerName: string,
-  tempPassword: string
+  tempPassword: string,
 ) => {
   const subject = `You've been invited to join Aim Construction`;
   const title = "You're Invited!";
@@ -171,7 +178,7 @@ const sendAdminOrSuperAdminCreationEmail = async (
   email: string,
   role: string,
   password: string,
-  message?: string
+  message?: string,
 ) => {
   const subject = `Congratulations! You are now an ${role}`;
   const title = `Welcome, ${role}!`;
@@ -207,7 +214,7 @@ const sendSupportMessageEmail = async (
   userEmail: string,
   userName: string,
   subject: string,
-  message: string
+  message: string,
 ) => {
   const adminEmail = config.smtp.emailFrom;
   const title = 'New Support Message';
