@@ -15,12 +15,11 @@ import { Secret } from 'jsonwebtoken';
 import { UserCompany } from '../userCompany/userCompany.model';
 import { Company } from '../company/company.model';
 
-// ... (createUser and validateUserStatus functions are unchanged)
 const validateUserStatus = (user: TUser) => {
   if (user.isDeleted) {
     throw new ApiError(
       StatusCodes.BAD_REQUEST,
-      'Your account has been deleted. Please contact support'
+      'Your account has been deleted. Please contact support',
     );
   }
 };
@@ -31,12 +30,24 @@ const createUser = async (userData: TUser) => {
     if (existingUser.isEmailVerified) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Email already taken');
     } else {
-      await User.findOneAndUpdate({ email: userData.email }, userData);
+      // --- START FIX: Do not use findOneAndUpdate ---
+      // We must fetch, update, and .save() to trigger the pre('save') password hash hook.
+
+      // 1. Update all fields from the new registration attempt
+      Object.assign(existingUser, userData);
+
+      // 2. Explicitly set the password to ensure the 'isModified' flag is set
+      existingUser.password = userData.password;
+
+      // 3. Save the document. This will now correctly trigger the pre('save') hook.
+      await existingUser.save();
+      // --- END FIX ---
+
       const verificationToken = await TokenService.createVerifyEmailToken(
-        existingUser
+        existingUser,
       );
       const { otp } = await OtpService.createVerificationEmailOtp(
-        existingUser.email
+        existingUser.email,
       );
       console.log('OTP ::: FIXME 🟢🟢', otp);
       return { otp, verificationToken };
@@ -47,6 +58,7 @@ const createUser = async (userData: TUser) => {
     userData.superVisorsManagerId = null;
   }
 
+  // This is for brand new users. User.create() correctly triggers the 'pre(save)' hook.
   const user = await User.create(userData);
 
   if (userData.companyId) {
@@ -54,12 +66,15 @@ const createUser = async (userData: TUser) => {
     if (!company) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Company Name is not valid');
     }
-    
-    if (userData.role === 'projectSupervisor' && !userData.superVisorsManagerId) {
-        throw new ApiError(
-          StatusCodes.BAD_REQUEST,
-          'SuperVisor Manager Id is required'
-        );
+
+    if (
+      userData.role === 'projectSupervisor' &&
+      !userData.superVisorsManagerId
+    ) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        'SuperVisor Manager Id is required',
+      );
     }
 
     const userCompany = await UserCompany.create({
@@ -71,7 +86,7 @@ const createUser = async (userData: TUser) => {
     if (!userCompany) {
       throw new ApiError(
         StatusCodes.BAD_REQUEST,
-        'User Company could not be created'
+        'User Company could not be created',
       );
     }
   }
@@ -82,10 +97,11 @@ const createUser = async (userData: TUser) => {
   return { otp, user, verificationToken };
 };
 
-
 const login = async (email: string, reqpassword: string, fcmToken: string) => {
-  const user = await User.findOne({ email }).select('+password fname lname role companyId isPasswordTemporary');
-  
+  const user = await User.findOne({ email }).select(
+    '+password fname lname role companyId isPasswordTemporary',
+  );
+
   if (!user) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid credentials');
   }
@@ -93,7 +109,7 @@ const login = async (email: string, reqpassword: string, fcmToken: string) => {
   if (user.isEmailVerified === false) {
     throw new ApiError(
       StatusCodes.BAD_REQUEST,
-      'User not verified, Please verify your email, Check your email.'
+      'User not verified, Please verify your email, Check your email.',
     );
   }
 
@@ -102,7 +118,7 @@ const login = async (email: string, reqpassword: string, fcmToken: string) => {
   if (user.lockUntil && user.lockUntil > new Date()) {
     throw new ApiError(
       StatusCodes.TOO_MANY_REQUESTS,
-      `Account is locked. Try again after ${config.auth.lockTime} minutes`
+      `Account is locked. Try again after ${config.auth.lockTime} minutes`,
     );
   }
 
@@ -114,7 +130,7 @@ const login = async (email: string, reqpassword: string, fcmToken: string) => {
       await user.save();
       throw new ApiError(
         423,
-        `Account locked for ${config.auth.lockTime} minutes due to too many failed attempts`
+        `Account locked for ${config.auth.lockTime} minutes due to too many failed attempts`,
       );
     }
 
@@ -130,8 +146,6 @@ const login = async (email: string, reqpassword: string, fcmToken: string) => {
 
   const userCompany = await UserCompany.findOne({ userId: user._id });
 
-  // ✨ FIX: Convert the Mongoose document to a plain JavaScript object.
-  // This ensures all properties, including virtuals and selected fields, are present.
   const userObject = user.toObject();
   const tokens = await TokenService.accessAndRefreshToken(userObject);
 
@@ -140,7 +154,6 @@ const login = async (email: string, reqpassword: string, fcmToken: string) => {
     await user.save();
   }
 
-  // The user object returned to the app will now be complete.
   const { password, ...userWithoutPassword } = userObject;
 
   return {
@@ -159,13 +172,13 @@ const verifyEmail = async (email: string, token: string, otp: string) => {
   await TokenService.verifyToken(
     token,
     config.token.TokenSecret,
-    user?.isResetPassword ? TokenType.RESET_PASSWORD : TokenType.VERIFY
+    user?.isResetPassword ? TokenType.RESET_PASSWORD : TokenType.VERIFY,
   );
 
   await OtpService.verifyOTP(
     user.email,
     otp,
-    user?.isResetPassword ? OtpType.RESET_PASSWORD : OtpType.VERIFY
+    user?.isResetPassword ? OtpType.RESET_PASSWORD : OtpType.VERIFY,
   );
 
   user.isEmailVerified = true;
@@ -195,7 +208,7 @@ const resendOtp = async (email: string) => {
 
   if (user?.isResetPassword) {
     const resetPasswordToken = await TokenService.createResetPasswordToken(
-      user
+      user,
     );
     const otp = await OtpService.createResetPasswordOtp(user.email);
     return { resetPasswordToken, otp };
@@ -208,7 +221,7 @@ const resendOtp = async (email: string) => {
 const resetPassword = async (
   email: string,
   newPassword: string,
-  otp: string
+  otp: string,
 ) => {
   const user = await User.findOne({ email });
   if (!user) {
@@ -235,7 +248,10 @@ const setInitialPassword = async (userId: string, newPassword: string) => {
   }
 
   if (!user.isPasswordTemporary) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'This account has already been activated.');
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      'This account has already been activated.',
+    );
   }
 
   user.password = newPassword;
@@ -249,7 +265,7 @@ const setInitialPassword = async (userId: string, newPassword: string) => {
 const changePassword = async (
   userId: string,
   currentPassword: string,
-  newPassword: string
+  newPassword: string,
 ) => {
   const user = await User.findById(userId).select('+password');
   if (!user) {
@@ -274,14 +290,14 @@ const refreshAuth = async (refreshToken: string) => {
   const verifyUser = await TokenService.verifyToken(
     refreshToken,
     config.jwt.refreshSecret as Secret,
-    TokenType.REFRESH
+    TokenType.REFRESH,
   );
 
   console.log('verify User :: 🧑‍💻🟢', verifyUser);
   let tokens;
   if (verifyUser) {
     tokens = await TokenService.accessAndRefreshTokenForRefreshToken(
-      verifyUser
+      verifyUser,
     );
   }
 
