@@ -5,6 +5,7 @@ import { TUser } from '../user/user.interface';
 import ApiError from '../../errors/ApiError';
 import { StatusCodes } from 'http-status-codes';
 import { ICompany } from './company.interface';
+import { User } from '../user/user.model'; // Import the User model
 
 export class CompanyService extends GenericService<typeof Company> {
   constructor() {
@@ -12,7 +13,6 @@ export class CompanyService extends GenericService<typeof Company> {
   }
 
   async getCompanyByManagerId(userId: string): Promise<ICompany | null> {
-    // ✅ DEFINITIVE FIX: The .populate() now correctly fetches the full company document.
     const userCompanyLink = await UserCompany.findOne({ userId: userId })
       .populate({
         path: 'companyId',
@@ -57,14 +57,27 @@ export class CompanyService extends GenericService<typeof Company> {
       );
     }
 
+    // --- START FIX: Immediately update the user's companyId field ---
+    // This makes the User document the single source of truth.
+    await User.findByIdAndUpdate(user._id, { companyId: companyId });
+    // --- END FIX ---
+
     return userCompany;
   }
 
   async setupCompanyProfile(companyProfileData: any, user: TUser) {
-    const existingLink = await UserCompany.findOne({ userId: user._id });
-    if (existingLink) {
+    // --- START FIX: Check the User object, not the UserCompany link ---
+    // The req.user object is attached by your auth middleware. We need to get the
+    // full user document from the database to be 100% sure.
+    const fullUser = await User.findById(user._id);
+    if (!fullUser) {
+        throw new ApiError(StatusCodes.NOT_FOUND, 'User not found.');
+    }
+
+    if (fullUser.companyId) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'This user account is already part of a company.');
     }
+    // --- END FIX ---
 
     const existingCompany = await Company.findOne({
       name: { $regex: new RegExp(`^${companyProfileData.name}$`, 'i') },
