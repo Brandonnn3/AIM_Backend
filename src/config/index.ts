@@ -51,6 +51,10 @@ export const config = {
     saltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS || '12'),
   },
 
+  resend: {
+    apiKey: process.env.RESEND_API_KEY,
+  },
+
   smtp: {
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT || '587'),
