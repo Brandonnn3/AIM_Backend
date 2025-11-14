@@ -32,11 +32,12 @@ export class CompanyService extends GenericService<typeof Company> {
     }
 
     const updatedCompany = await this.updateById(companyId, payload as any);
-    return updatedCompany;
+    return updatedCompany; // <-- THIS WAS THE FIX (was 'updated.')
   }
 
-  async joinCompany(user: TUser, companyId: string) {
-    const existingLink = await UserCompany.findOne({ userId: user._id });
+  async joinCompany(user: TUser | any, companyId: string) { // Allow 'any' for JWT payload
+    const userId = user._id || user.userId; // Get ID from Mongoose doc or JWT
+    const existingLink = await UserCompany.findOne({ userId: userId });
     if (existingLink) {
       throw new ApiError(
         StatusCodes.BAD_REQUEST,
@@ -45,7 +46,7 @@ export class CompanyService extends GenericService<typeof Company> {
     }
 
     const userCompany = await UserCompany.create({
-      userId: user._id,
+      userId: userId,
       companyId: companyId,
       role: user.role,
     });
@@ -59,17 +60,16 @@ export class CompanyService extends GenericService<typeof Company> {
 
     // --- START FIX: Immediately update the user's companyId field ---
     // This makes the User document the single source of truth.
-    await User.findByIdAndUpdate(user._id, { companyId: companyId });
+    await User.findByIdAndUpdate(userId, { companyId: companyId });
     // --- END FIX ---
 
     return userCompany;
   }
 
-  async setupCompanyProfile(companyProfileData: any, user: TUser) {
-    // --- START FIX: Check the User object, not the UserCompany link ---
-    // The req.user object is attached by your auth middleware. We need to get the
-    // full user document from the database to be 100% sure.
-    const fullUser = await User.findById(user._id);
+  async setupCompanyProfile(companyProfileData: any, user: any) { // 'user' is the JWT payload, so use 'any'
+    // --- START FIX: Check the User object using the correct ID from the JWT payload ---
+    // The 'user' object here is the JWT payload, which has 'userId'.
+    const fullUser = await User.findById(user.userId); // <-- THIS IS THE FIX
     if (!fullUser) {
         throw new ApiError(StatusCodes.NOT_FOUND, 'User not found.');
     }
@@ -92,7 +92,8 @@ export class CompanyService extends GenericService<typeof Company> {
         throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to create the company.');
     }
 
-    const userCompanyLink = await this.joinCompany(user, newCompany._id.toString());
+    // Pass the full user document to joinCompany, as it's now available
+    const userCompanyLink = await this.joinCompany(fullUser, newCompany._id.toString());
 
     return { newCompany, userCompanyLink };
   }
