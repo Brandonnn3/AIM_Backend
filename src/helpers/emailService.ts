@@ -1,32 +1,42 @@
 // src/helpers/emailService.ts
 
 import colors from 'colors';
-import sgMail from '@sendgrid/mail'; // 💡 CHANGED: Import SendGrid
+import nodemailer from 'nodemailer';
+import path from 'path';
 import { errorLogger, logger } from '../shared/logger';
 import { ISendEmail } from '../types/email';
 import { config } from '../config';
 
-// 💡 CHANGED: Initialize SendGrid
-const sendgridApiKey = config.sendgrid?.apiKey || process.env.SENDGRID_API_KEY;
+// -------------------- Transporter --------------------
+const transporter = nodemailer.createTransport({
+  host: config.smtp.host,
+  port: Number(config.smtp.port),
+  secure: false,
+  auth: {
+    user: config.smtp.username,
+    pass: config.smtp.password,
+  },
+});
 
-if (sendgridApiKey) {
-  sgMail.setApiKey(sendgridApiKey);
-  logger.info(colors.cyan('📧 SendGrid email client initialized'));
-} else {
-  logger.warn(
-    'SENDGRID_API_KEY not found. Email services will be disabled. Make sure you have configured the environment variable.',
-  );
+// Verify connection
+if (config.environment !== 'test') {
+  transporter
+    .verify()
+    .then(() => logger.info(colors.cyan('📧  Connected to email server')))
+    .catch(() =>
+      logger.warn(
+        'Unable to connect to email server. Check SMTP settings in .env'
+      )
+    );
 }
 
-// 💡 REMOVED: All Resend client code
+// -------------------- CID Setup --------------------
+const LOGO_CID = 'aimlogo@cid';
+const LOGO_PATH = path.join(__dirname, '../Assets/appLogo.png');
 
-// Shared HTML template
-const createStyledEmailTemplate = (
-  title: string,
-  body: string,
-): string => {
-  const logoUrl =
-    'https://i.ibb.co/RpMRDQFW/AIM-20-20-Transparent-20-PNG-20-white.png';
+// -------------------- Email Template --------------------
+const createStyledEmailTemplate = (title: string, body: string): string => {
+  const logoUrl = `cid:${LOGO_CID}`;
 
   // ... (Your entire HTML template string)
   // ... (NO CHANGES NEEDED HERE)
@@ -89,70 +99,52 @@ const createStyledEmailTemplate = (
   `;
 };
 
-// 💡 CHANGED: Core sendEmail helper now uses SendGrid
+// -------------------- Send Email --------------------
 const sendEmail = async (values: ISendEmail) => {
-  if (!sendgridApiKey) {
-    errorLogger.error('📧 [EMAIL ERROR] Cannot send email: SENDGRID_API_KEY is not configured.');
-    return;
-  }
-  
-  const fromEmail = config.smtp.emailFrom || 'noreply@aimconstructionmgt.com';
-
-  // 💡 CHANGED: This is the SendGrid message object
-  const msg = {
-    to: values.to,
-    from: {
-      name: 'AIM Construction',
-      email: fromEmail, // Must be from your verified domain
-    },
-    subject: values.subject,
-    html: values.html,
-  };
-
   try {
-    logger.info(
-      `📧 [EMAIL] Sending email... from=${fromEmail} to=${values.to} subject=${values.subject}`,
-    );
+    const info = await transporter.sendMail({
+      from: config.smtp.emailFrom,
+      to: values.to,
+      subject: values.subject,
+      html: values.html,
+      attachments: [
+        {
+          filename: 'appLogo.png',
+          path: LOGO_PATH,
+          cid: LOGO_CID, // MUST match <img src="cid:aimlogo@cid">
+        },
+      ],
+    });
 
-    // 💡 CHANGED: Use the SendGrid API
-    await sgMail.send(msg);
-
-    logger.info(
-      `📧 [EMAIL] Mail sent successfully via SendGrid to ${values.to}`,
-    );
-  } catch (error: any) { // 💡 CHANGED: Typed 'error' as 'any' to access properties
-    // 💡 CHANGED: Better error logging for SendGrid
-    errorLogger.error('📧 [EMAIL ERROR] SendGrid API failed:', error.response?.body || error);
-    // In dev/prod we WANT to know email is broken, so let the caller see the failure.
-    throw error;
+    logger.info('Mail sent successfully', info.accepted);
+  } catch (error) {
+    errorLogger.error('Email', error);
   }
 };
 
-// --- NO CHANGES NEEDED BELOW THIS LINE ---
-// All your existing functions will work perfectly with the new sendEmail function.
-
+// -------------------- Email Types --------------------
 const sendVerificationEmail = async (to: string, otp: string) => {
-  const subject = 'Your Verification Code';
-  const title = 'Verification Code';
-  const body = `
-    <p>Here's your verification code:</p>
-    <div class="otp-code">${otp}</div>
-    <p style="font-size: 14px;">This code will expire soon.</p>
-  `;
-  const html = createStyledEmailTemplate(title, body);
-  await sendEmail({ to, subject, html });
+  const html = createStyledEmailTemplate(
+    'Verification Code',
+    `
+      <p>Here's your verification code:</p>
+      <div class="otp-code">${otp}</div>
+      <p style="font-size: 14px;">This code will expire soon.</p>
+    `
+  );
+  await sendEmail({ to, subject: 'Your Verification Code', html });
 };
 
 const sendResetPasswordEmail = async (to: string, otp: string) => {
-  const subject = 'Your Password Reset Code';
-  const title = 'Password Reset';
-  const body = `
-    <p>Here's your password reset code:</p>
-    <div class="otp-code">${otp}</div>
-    <p style="font-size: 14px;">If you didn't request this, you can safely ignore this email.</p>
-  `;
-  const html = createStyledEmailTemplate(title, body);
-  await sendEmail({ to, subject, html });
+  const html = createStyledEmailTemplate(
+    'Password Reset',
+    `
+      <p>Here's your password reset code:</p>
+      <div class="otp-code">${otp}</div>
+      <p style="font-size: 14px;">If you didn't request this, you can safely ignore this email.</p>
+    `
+  );
+  await sendEmail({ to, subject: 'Your Password Reset Code', html });
 };
 
 const sendSupervisorInviteEmail = async (
@@ -160,18 +152,18 @@ const sendSupervisorInviteEmail = async (
   managerName: string,
   tempPassword: string,
 ) => {
-  const subject = `You've been invited to join Aim Construction`;
-  const title = "You're Invited!";
-  const body = `
-    <p>Your manager, <strong>${managerName}</strong>, has invited you to join their team. An account has been created for you.</p>
-    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
-      <p style="font-size: 16px; margin: 10px 0;"><strong>Email:</strong> <span style="color: #F9A825;">${to}</span></p>
-      <p style="font-size: 16px; margin: 10px 0;"><strong>Temporary Password:</strong> <span style="color: #F9A825; font-weight: bold;">${tempPassword}</span></p>
-    </div>
-    <p>For security reasons, please log in and change your password immediately.</p>
-  `;
-  const html = createStyledEmailTemplate(title, body);
-  await sendEmail({ to, subject, html });
+  const html = createStyledEmailTemplate(
+    "You're Invited!",
+    `
+      <p>Your manager, <strong>${managerName}</strong>, has invited you to join their team. An account has been created for you.</p>
+      <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
+        <p><strong>Email:</strong> <span style="color:#F9A825;">${to}</span></p>
+        <p><strong>Temporary Password:</strong> <span style="color:#F9A825; font-weight:bold;">${tempPassword}</span></p>
+      </div>
+      <p>Please log in and change your password immediately.</p>
+    `
+  );
+  await sendEmail({ to, subject: `You've been invited to join Aim Construction`, html });
 };
 
 const sendAdminOrSuperAdminCreationEmail = async (
@@ -180,34 +172,34 @@ const sendAdminOrSuperAdminCreationEmail = async (
   password: string,
   message?: string,
 ) => {
-  const subject = `Congratulations! You are now an ${role}`;
-  const title = `Welcome, ${role}!`;
-  const body = `
-    <p>An account has been created for you on the Aim Construction platform. Use the credentials below to log in:</p>
-    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
-      <p style="font-size: 16px; margin: 10px 0;"><strong>Email:</strong> <span style="color: #F9A825;">${email}</span></p>
-      <p style="font-size: 16px; margin: 10px 0;"><strong>Temporary Password:</strong> <span style="color: #F9A825; font-weight: bold;">${password}</span></p>
-    </div>
-    ${message ? `<p>${message}</p>` : ''}
-    <p>For security reasons, please log in and change your password immediately.</p>
-  `;
-  const html = createStyledEmailTemplate(title, body);
-  await sendEmail({ to: email, subject, html });
+  const html = createStyledEmailTemplate(
+    `Welcome, ${role}!`,
+    `
+      <p>An account has been created for you. Use the credentials below:</p>
+      <div style="background-color:#f9f9f9; padding:20px; border-radius:8px; margin:30px 0; text-align:center;">
+        <p><strong>Email:</strong> <span style="color:#F9A825;">${email}</span></p>
+        <p><strong>Temporary Password:</strong> <span style="color:#F9A825; font-weight:bold;">${password}</span></p>
+      </div>
+      ${message || ''}
+      <p>Please log in and change your password immediately.</p>
+    `
+  );
+  await sendEmail({ to: email, subject: `Congratulations! You are now an ${role}`, html });
 };
 
 const sendWelcomeEmail = async (to: string, password: string) => {
-  const subject = 'Welcome to Aim Construction!';
-  const title = 'Welcome Aboard!';
-  const body = `
-    <p>We are excited to have you join us. Your account has been created successfully. Use the following credentials to log in:</p>
-    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
-      <p style="font-size: 16px; margin: 10px 0;"><strong>Email:</strong> <span style="color: #F9A825;">${to}</span></p>
-      <p style="font-size: 16px; margin: 10px 0;"><strong>Temporary Password:</strong> <span style="color: #F9A825; font-weight: bold;">${password}</span></p>
-    </div>
-    <p>For security reasons, please log in and change your password immediately.</p>
-  `;
-  const html = createStyledEmailTemplate(title, body);
-  await sendEmail({ to, subject, html });
+  const html = createStyledEmailTemplate(
+    'Welcome Aboard!',
+    `
+      <p>Your account has been created successfully. Use your credentials below:</p>
+      <div style="background-color:#f9f9f9; padding:20px; border-radius:8px; margin:30px 0; text-align:center;">
+        <p><strong>Email:</strong> <span style="color:#F9A825;">${to}</span></p>
+        <p><strong>Temporary Password:</strong> <span style="color:#F9A825; font-weight:bold;">${password}</span></p>
+      </div>
+      <p>Please log in and change your password immediately.</p>
+    `
+  );
+  await sendEmail({ to, subject: 'Welcome to Aim Construction!', html });
 };
 
 const sendSupportMessageEmail = async (
@@ -217,24 +209,28 @@ const sendSupportMessageEmail = async (
   message: string,
 ) => {
   const adminEmail = config.smtp.emailFrom;
-  const title = 'New Support Message';
-  const body = `
-    <p>From: <strong>${userName}</strong> (${userEmail})</p>
-    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 30px 0; text-align: left;">
-      <p style="font-size: 16px; margin: 10px 0;"><strong>Subject:</strong> ${subject}</p>
-      <hr style="border: none; border-top: 1px solid #eeeeee; margin: 15px 0;">
-      <p style="font-size: 16px; margin: 10px 0;">${message}</p>
-    </div>
-    <p>Please respond to the user as soon as possible.</p>
-  `;
-  const html = createStyledEmailTemplate(title, body);
+
+  const html = createStyledEmailTemplate(
+    'New Support Message',
+    `
+      <p>From: <strong>${userName}</strong> (${userEmail})</p>
+      <div style="background-color:#f9f9f9; padding:20px; border-radius:8px; margin:30px 0;">
+        <p><strong>Subject:</strong> ${subject}</p>
+        <hr />
+        <p>${message}</p>
+      </div>
+      <p>Please respond to the user as soon as possible.</p>
+    `
+  );
+
   await sendEmail({
-    to: adminEmail || '',
+    to: adminEmail ?? '',
     subject: `Support Request from ${userName}`,
     html,
   });
 };
 
+// -------------------- Exports --------------------
 export {
   sendEmail,
   sendVerificationEmail,
