@@ -1,42 +1,29 @@
 import colors from 'colors';
-import nodemailer from 'nodemailer';
-import path from 'path';
+import * as sgMail from '@sendgrid/mail';
 import { errorLogger, logger } from '../shared/logger';
 import { ISendEmail } from '../types/email';
 import { config } from '../config';
-import fs from 'fs';
 
-// -------------------- Transporter --------------------
-const transporter = nodemailer.createTransport({
-  host: config.smtp.host,
-  port: Number(config.smtp.port),
-  secure: false,
-  auth: {
-    user: config.smtp.username,
-    pass: config.smtp.password,
-  },
-});
+// -------------------- SendGrid Setup --------------------
 
-// Verify connection
-if (config.environment !== 'test') {
-  transporter
-    .verify()
-    .then(() => logger.info(colors.cyan('📧  Connected to email server')))
-    .catch(() =>
-      logger.warn(
-        'Unable to connect to email server. Check SMTP settings in .env'
-      )
-    );
+// Prefer config, fall back to env var directly just in case
+const SENDGRID_API_KEY =
+  (config as any).sendgrid?.apiKey ||
+  process.env.SENDGRID_API_KEY ||
+  '';
+
+if (!SENDGRID_API_KEY) {
+  logger.warn('SENDGRID_API_KEY is missing. Emails will NOT be sent.');
+} else {
+  sgMail.setApiKey(SENDGRID_API_KEY);
+  logger.info(colors.cyan('📧  SendGrid email client initialized'));
 }
 
-// -------------------- CID Setup --------------------
-const LOGO_CID = 'aimlogo@cid';
-const LOGO_PATH = path.join(process.cwd(), 'src', 'Assets', 'appLogo.png');
+// This is your verified sender address in SendGrid
+const FROM_EMAIL = config.smtp?.emailFrom || 'noreply@aimconstructionmgt.com';
 
 // -------------------- Email Template --------------------
 const createStyledEmailTemplate = (title: string, body: string): string => {
-  const logoUrl = `cid:${LOGO_CID}`;
-
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -49,8 +36,6 @@ const createStyledEmailTemplate = (title: string, body: string): string => {
         .wrapper { width: 100%; table-layout: fixed; background-color: #f7f7f7; padding-bottom: 60px; }
         .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #1a1a1a; }
         .top-part { background-color: #f0f0f0; height: 150px; text-align: center; }
-        .logo-circle { background-color: #F9A825; border-radius: 50%; width: 80px; height: 80px; margin: 0 auto; line-height: 80px; }
-        .logo-circle img { width: 50px; height: auto; vertical-align: middle; }
         .content { padding: 40px; text-align: center; }
         .content h1 { font-size: 32px; margin-top: 0; margin-bottom: 30px; font-weight: 700; }
         .content p { font-size: 16px; line-height: 1.6; color: #555555; }
@@ -67,13 +52,6 @@ const createStyledEmailTemplate = (title: string, body: string): string => {
           <tr>
             <td style="padding: 0 20px;">
               <table style="width:100%; background-color:#ffffff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.07); margin-top: -70px;">
-                <tr>
-                  <td style="padding-top: 30px; text-align:center;">
-                    <div class="logo-circle">
-                      <img src="${logoUrl}" alt="Aim Construction Logo">
-                    </div>
-                  </td>
-                </tr>
                 <tr>
                   <td class="content">
                     <h1>${title}</h1>
@@ -95,28 +73,38 @@ const createStyledEmailTemplate = (title: string, body: string): string => {
   `;
 };
 
-// -------------------- Send Email --------------------
+// -------------------- Low-level send --------------------
 const sendEmail = async (values: ISendEmail) => {
   try {
-    logger.info(`Attempting to send email to: ${values.to}, subject: ${values.subject}`);
+    if (!SENDGRID_API_KEY) {
+      logger.error('SENDGRID_API_KEY is not set. Cannot send email.');
+      return;
+    }
 
-    const info = await transporter.sendMail({
-      from: config.smtp.emailFrom,
+    logger.info(
+      `Attempting to send email via SendGrid to: ${values.to}, subject: ${values.subject}`
+    );
+
+    const msg = {
       to: values.to,
+      from: FROM_EMAIL, // must be a verified sender in SendGrid
       subject: values.subject,
       html: values.html,
-      // 🚫 No attachments for now
-    });
+    };
 
-    logger.info('Mail sent successfully', info);
+    const [resp] = await sgMail.send(msg);
+
+    logger.info('Mail sent successfully via SendGrid', {
+      statusCode: resp.statusCode,
+      headers: resp.headers,
+    });
   } catch (error) {
-    logger.error('Email send error (console)', error);
-    errorLogger.error('Email send error', error);
+    logger.error('Email send error via SendGrid (console)', error);
+    errorLogger.error('Email send error via SendGrid', error);
   }
 };
 
-
-// -------------------- Email Types --------------------
+// -------------------- High-level helpers --------------------
 const sendVerificationEmail = async (to: string, otp: string) => {
   const html = createStyledEmailTemplate(
     'Verification Code',
@@ -202,7 +190,7 @@ const sendSupportMessageEmail = async (
   subject: string,
   message: string
 ) => {
-  const adminEmail = config.smtp.emailFrom;
+  const adminEmail = config.smtp?.emailFrom || FROM_EMAIL;
 
   const html = createStyledEmailTemplate(
     'New Support Message',
