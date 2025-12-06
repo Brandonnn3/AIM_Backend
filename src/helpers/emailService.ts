@@ -4,6 +4,7 @@ import path from 'path';
 import { errorLogger, logger } from '../shared/logger';
 import { ISendEmail } from '../types/email';
 import { config } from '../config';
+import fs from 'fs';
 
 // -------------------- Transporter --------------------
 const transporter = nodemailer.createTransport({
@@ -30,7 +31,7 @@ if (config.environment !== 'test') {
 
 // -------------------- CID Setup --------------------
 const LOGO_CID = 'aimlogo@cid';
-const LOGO_PATH = path.join(__dirname, '../Assets/appLogo.png');
+const LOGO_PATH = path.join(process.cwd(), 'src', 'Assets', 'appLogo.png');
 
 // -------------------- Email Template --------------------
 const createStyledEmailTemplate = (title: string, body: string): string => {
@@ -97,23 +98,29 @@ const createStyledEmailTemplate = (title: string, body: string): string => {
 // -------------------- Send Email --------------------
 const sendEmail = async (values: ISendEmail) => {
   try {
+    const attachments = [];
+
+    if (fs.existsSync(LOGO_PATH)) {
+      attachments.push({
+        filename: 'appLogo.png',
+        path: LOGO_PATH,
+        cid: LOGO_CID, // must match cid: in img src
+      });
+    } else {
+      logger.warn(`Email logo not found at path: ${LOGO_PATH}. Sending email without logo.`);
+    }
+
     const info = await transporter.sendMail({
       from: config.smtp.emailFrom,
       to: values.to,
       subject: values.subject,
       html: values.html,
-      attachments: [
-        {
-          filename: 'appLogo.png',
-          path: LOGO_PATH,
-          cid: LOGO_CID, // MUST match <img src="cid:aimlogo@cid">
-        },
-      ],
+      attachments,
     });
 
     logger.info('Mail sent successfully', info.accepted);
   } catch (error) {
-    errorLogger.error('Email', error);
+    errorLogger.error('Email send error', error);
   }
 };
 
