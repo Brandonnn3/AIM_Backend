@@ -1,5 +1,5 @@
 import colors from 'colors';
-import * as sgMail from '@sendgrid/mail';
+import sgMail from '@sendgrid/mail';
 import { errorLogger, logger } from '../shared/logger';
 import { ISendEmail } from '../types/email';
 import { config } from '../config';
