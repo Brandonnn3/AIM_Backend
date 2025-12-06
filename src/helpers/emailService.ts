@@ -1,7 +1,5 @@
 import colors from 'colors';
-import path from 'path';
-import fs from 'fs';
-import sgMail, { MailDataRequired } from '@sendgrid/mail';
+import sgMail from '@sendgrid/mail';
 import { errorLogger, logger } from '../shared/logger';
 import { ISendEmail } from '../types/email';
 import { config } from '../config';
@@ -16,14 +14,15 @@ if (!SENDGRID_API_KEY) {
   logger.info(colors.cyan('📧  SendGrid initialized'));
 }
 
-// -------------------- Inline Logo Setup --------------------
-const LOGO_CID = 'aim-app-logo';
-const LOGO_PATH = path.join(process.cwd(), 'src', 'Assets', 'appLogo.png');
+// From address (must be verified in SendGrid)
+const FROM_EMAIL = config.smtp?.emailFrom || 'noreply@aimconstructionmgt.com';
+
+// Public logo URL (GitHub raw file)
+const LOGO_URL =
+  'https://raw.githubusercontent.com/Brandonnn3/AIM_Backend/main/src/Assets/appLogo.png';
 
 // -------------------- Email Template --------------------
 const createStyledEmailTemplate = (title: string, body: string): string => {
-  const logoSrc = `cid:${LOGO_CID}`;
-
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -59,7 +58,7 @@ const createStyledEmailTemplate = (title: string, body: string): string => {
                 <tr>
                   <td style="padding-top: 30px; text-align:center;">
                     <div class="logo-circle">
-                      <img src="${logoSrc}" alt="Aim Construction Logo" />
+                      <img src="${LOGO_URL}" alt="Aim Construction Logo" />
                     </div>
                   </td>
                 </tr>
@@ -92,44 +91,29 @@ const sendEmail = async (values: ISendEmail) => {
       `Attempting to send email via SendGrid to: ${values.to}, subject: ${values.subject}`
     );
 
-    let attachments: MailDataRequired['attachments'];
-
-    if (fs.existsSync(LOGO_PATH)) {
-      const logoBuffer = fs.readFileSync(LOGO_PATH);
-      const logoBase64 = logoBuffer.toString('base64');
-
-      attachments = [
-        {
-          content: logoBase64,
-          filename: 'appLogo.png',
-          type: 'image/png',
-          disposition: 'inline',
-          contentId: LOGO_CID,
-        },
-      ];
-    } else {
-      logger.warn(
-        `Email logo not found at path: ${LOGO_PATH}. Sending email without logo.`
-      );
-    }
-
-    const msg: MailDataRequired = {
+    const msg = {
+      to: values.to,
       from: {
-        email: config.smtp.emailFrom, // e.g. noreply@aimconstructionmgt.com
+        email: FROM_EMAIL,
         name: 'Aim Construction',
       },
-      to: values.to,
       subject: values.subject,
       html: values.html,
-      attachments,
     };
 
     const [response] = await sgMail.send(msg);
     logger.info(
       `Mail sent successfully via SendGrid to ${values.to} (status=${response.statusCode})`
     );
-  } catch (error) {
-    errorLogger.error('Email send error', error);
+  } catch (error: any) {
+    logger.error('Email send error via SendGrid', error);
+
+    // Helpful extra logging if SendGrid returns details
+    if (error.response?.body) {
+      logger.error('SendGrid error body', error.response.body);
+    }
+
+    errorLogger.error('Email send error via SendGrid', error);
   }
 };
 
@@ -219,7 +203,7 @@ const sendSupportMessageEmail = async (
   subject: string,
   message: string
 ) => {
-  const adminEmail = config.smtp.emailFrom;
+  const adminEmail = FROM_EMAIL;
 
   const html = createStyledEmailTemplate(
     'New Support Message',
