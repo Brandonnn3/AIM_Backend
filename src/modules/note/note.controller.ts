@@ -20,27 +20,46 @@ import { Types } from 'mongoose';
 const noteService = new NoteService();
 const attachmentService = new AttachmentService();
 
-// --- NO CHANGES IN THIS FUNCTION ---
 const createNote: RequestHandler = catchAsync(async (req, res) => {
   const user = req.user as any;
+
+  // Map 'userId' from token to '_id' if _id is missing
+  if (user && !user._id && user.userId) {
+    user._id = user.userId;
+  }
+
   if (!user || !user._id) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not authenticated or user ID missing in token.');
   }
+
   const project = await Project.findById(req.body.projectId);
   if (!project) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Project not found');
   }
+
   const userId = user._id.toString();
   const projectManagerId = project.projectManagerId?.toString();
-  const projectSupervisorIds = project.projectSuperVisorIds
-    ? project.projectSuperVisorIds.toString()
-    : null;
-  if (userId !== projectManagerId && userId !== projectSupervisorIds) {
+  
+  // Handle array or single value for supervisors
+  let isSupervisor = false;
+  if (project.projectSuperVisorIds) {
+      // ✅ FIX: Cast to 'any' to solve the "type 'never'" error
+      const rawIds = project.projectSuperVisorIds as any;
+      
+      const supervisors = Array.isArray(rawIds) 
+          ? rawIds.map((id: any) => id.toString())
+          : [rawIds.toString()];
+          
+      isSupervisor = supervisors.includes(userId);
+  }
+
+  if (userId !== projectManagerId && !isSupervisor) {
     throw new ApiError(
       StatusCodes.FORBIDDEN,
       'You are not authorized to add notes to this project.'
     );
   }
+
   const notePayload = { ...req.body };
   notePayload.createdBy = user._id;
   notePayload.isAccepted = noteStatus.pending;
@@ -48,8 +67,10 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
     notePayload.createdAt = new Date(req.body.date);
   }
   delete notePayload.attachments;
+
   const result = await noteService.create(notePayload);
   const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+  
   if (files && files.attachments) {
     await Promise.all(
       files.attachments.map(async (file: Express.Multer.File) => {
@@ -63,12 +84,15 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
       })
     );
   }
+
   const MAX_TITLE_LENGTH = 23;
   const truncatedTitle =
     result.title.length > MAX_TITLE_LENGTH
       ? result.title.substring(0, MAX_TITLE_LENGTH) + '...'
       : result.title;
+  
   const creatorName = user.userName || user.fname || 'A user';
+  
   const notificationPayload: INotification = {
     title: `Note "${truncatedTitle}" created by ${creatorName}`,
     receiverId: project.projectManagerId,
@@ -78,7 +102,9 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
     projectId: project._id as Types.ObjectId,
     isDeleted: false,
   };
+
   const notification = await NotificationService.addNotification(notificationPayload);
+  
   if (io && project.projectManagerId) {
     io.to(project.projectManagerId.toString()).emit('newNotification', {
       code: StatusCodes.OK,
@@ -86,6 +112,7 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
       data: notification,
     });
   }
+
   sendResponse(res, {
     code: StatusCodes.CREATED,
     data: result,
@@ -94,7 +121,6 @@ const createNote: RequestHandler = catchAsync(async (req, res) => {
   });
 });
 
-// --- NO CHANGES IN THESE FUNCTIONS ---
 const getANote: RequestHandler = catchAsync(async (req, res) => {
     const result = await noteService.getById(req.params.noteId);
     sendResponse(res, {
@@ -227,14 +253,12 @@ const changeStatusOfANoteWithDeny: RequestHandler = catchAsync(async (req, res) 
         result.isAccepted = status as noteStatus;
         await result.save();
 
-        // This block now creates the correct activity type
         if (status === noteStatus.accepted) {
             const project = await Project.findById(result.projectId);
             if (project && project.projectManagerId) {
                  const notificationPayload: INotification = {
                     title: `Daily Log Approved: '${result.title}' was approved.`,
                     receiverId: project.projectManagerId,
-                    // ✨ FIX: Use the 'log' type for approvals
                     notificationFor: 'log', 
                     projectId: result.projectId,
                     linkId: result._id,
