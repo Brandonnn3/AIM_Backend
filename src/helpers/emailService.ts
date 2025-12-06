@@ -1,5 +1,3 @@
-// src/helpers/emailService.ts
-
 import colors from 'colors';
 import nodemailer from 'nodemailer';
 import path from 'path';
@@ -38,9 +36,6 @@ const LOGO_PATH = path.join(__dirname, '../Assets/appLogo.png');
 const createStyledEmailTemplate = (title: string, body: string): string => {
   const logoUrl = `cid:${LOGO_CID}`;
 
-  // ... (Your entire HTML template string)
-  // ... (NO CHANGES NEEDED HERE)
-  // ...
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -150,7 +145,7 @@ const sendResetPasswordEmail = async (to: string, otp: string) => {
 const sendSupervisorInviteEmail = async (
   to: string,
   managerName: string,
-  tempPassword: string,
+  tempPassword: string
 ) => {
   const html = createStyledEmailTemplate(
     "You're Invited!",
@@ -170,7 +165,7 @@ const sendAdminOrSuperAdminCreationEmail = async (
   email: string,
   role: string,
   password: string,
-  message?: string,
+  message?: string
 ) => {
   const html = createStyledEmailTemplate(
     `Welcome, ${role}!`,
@@ -206,7 +201,7 @@ const sendSupportMessageEmail = async (
   userEmail: string,
   userName: string,
   subject: string,
-  message: string,
+  message: string
 ) => {
   const adminEmail = config.smtp.emailFrom;
 
