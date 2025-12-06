@@ -98,31 +98,23 @@ const createStyledEmailTemplate = (title: string, body: string): string => {
 // -------------------- Send Email --------------------
 const sendEmail = async (values: ISendEmail) => {
   try {
-    const attachments = [];
-
-    if (fs.existsSync(LOGO_PATH)) {
-      attachments.push({
-        filename: 'appLogo.png',
-        path: LOGO_PATH,
-        cid: LOGO_CID, // must match cid: in img src
-      });
-    } else {
-      logger.warn(`Email logo not found at path: ${LOGO_PATH}. Sending email without logo.`);
-    }
+    logger.info(`Attempting to send email to: ${values.to}, subject: ${values.subject}`);
 
     const info = await transporter.sendMail({
       from: config.smtp.emailFrom,
       to: values.to,
       subject: values.subject,
       html: values.html,
-      attachments,
+      // 🚫 No attachments for now
     });
 
-    logger.info('Mail sent successfully', info.accepted);
+    logger.info('Mail sent successfully', info);
   } catch (error) {
+    logger.error('Email send error (console)', error);
     errorLogger.error('Email send error', error);
   }
 };
+
 
 // -------------------- Email Types --------------------
 const sendVerificationEmail = async (to: string, otp: string) => {
