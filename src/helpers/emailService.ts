@@ -35,7 +35,7 @@ const createStyledEmailTemplate = (title: string, body: string): string => {
         .wrapper { width: 100%; table-layout: fixed; background-color: #f7f7f7; padding-bottom: 60px; }
         .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #1a1a1a; }
         .top-part { background-color: #f0f0f0; height: 150px; text-align: center; }
-        .logo-circle { background-color: #F9A825; border-radius: 50%; width: 80px; height: 80px; margin: 0 auto; line-height: 80px; }
+        .logo-circle { background-color: #E5E7EB; border-radius: 50%; width: 80px; height: 80px; margin: 0 auto; line-height: 80px; }
         .logo-circle img { width: 50px; height: auto; vertical-align: middle; }
         .content { padding: 40px; text-align: center; }
         .content h1 { font-size: 32px; margin-top: 0; margin-bottom: 30px; font-weight: 700; }
