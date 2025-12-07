@@ -19,9 +19,13 @@ const attachmentService = new AttachmentService();
 
 const createProject: RequestHandler = catchAsync(async (req, res) => {
   const user = req.user as any; // The user object is from the decoded token
-  // ✅ FIX: Use `userId` from the token payload instead of `_id`
+  
   req.body.projectManagerId = user.userId;
-  req.body.projectStatus = 'planning';
+  
+  // ✅ FIX: Use provided status, or default to 'planning' if missing
+  if (!req.body.projectStatus) {
+      req.body.projectStatus = 'planning';
+  }
 
   if (req.body.projectSuperVisorId) {
     req.body.projectSuperVisorIds = [req.body.projectSuperVisorId];
@@ -41,6 +45,7 @@ const createProject: RequestHandler = catchAsync(async (req, res) => {
         attachedToType: AttachedToType.project,
       }
     );
+    // This updates the projectLogo field with the URL
     await projectService.updateById(result._id.toString(), { projectLogo: newAttachment.attachment });
   }
 
@@ -91,6 +96,7 @@ const createProject: RequestHandler = catchAsync(async (req, res) => {
   };
   await NotificationService.addNotification(creatorActivity);
 
+  // Fetch fresh data (including logo if uploaded)
   const updatedProject = await projectService.getById(result._id.toString());
 
   sendResponse(res, {
@@ -268,27 +274,21 @@ const getAllProject: RequestHandler = catchAsync(async (req, res) => {
 
 const getAllProjectsByManager: RequestHandler = catchAsync(async (req, res) => {
   const user = req.user as any;
-  // ✅ FIX: Check for `userId` from the token payload
   if (!user || !user.userId) { throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not found or invalid token'); }
-  // ✅ FIX: Pass `user.userId` to the service
   const result = await projectService.getAllProjectsByManagerId(user.userId);
   sendResponse(res, { code: StatusCodes.OK, data: result, message: 'Manager projects retrieved successfully', success: true });
 });
 
 const getAllProjectsBySupervisor: RequestHandler = catchAsync(async (req, res) => {
   const user = req.user as any;
-  // ✅ FIX: Check for `userId` from the token payload
   if (!user || !user.userId) { throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not found or invalid token'); }
-  // ✅ FIX: Pass `user.userId` to the service
   const result = await projectService.getAllProjectsBySupervisorId(user.userId);
   sendResponse(res, { code: StatusCodes.OK, data: result, message: 'Supervisor projects retrieved successfully', success: true });
 });
 
 const getAllProjectWithPagination: RequestHandler = catchAsync(async (req, res) => {
   const user = req.user as any;
-  // ✅ FIX: Check for `userId` from the token payload
   if (!user || !user.userId) { throw new ApiError(StatusCodes.UNAUTHORIZED, 'User information is missing'); }
-  // ✅ FIX: Pass `user.userId` to the service
   const result = await projectService.getAllProjectsByManagerId(user.userId);
   sendResponse(res, { code: StatusCodes.OK, data: result, message: 'Manager projects retrieved successfully', success: true });
 });
