@@ -23,7 +23,6 @@ const attachmentSchema = new Schema<IAttachment>(
       required: [false, 'AttachedToId is required.'],
     },
     attachedToType: {
-
       enum: [
         AttachedToType.note,
         AttachedToType.task,
@@ -46,8 +45,13 @@ const attachmentSchema = new Schema<IAttachment>(
     },
     uploaderRole: {
       type: String,
-      enum: [UploaderRole.projectManager, UploaderRole.projectSupervisor, UploaderRole.admin], // Added admin
+      enum: [UploaderRole.projectManager, UploaderRole.projectSupervisor, UploaderRole.admin],
       required: true,
+    },
+    // ✅ Added customName to Schema
+    customName: {
+      type: String,
+      required: false,
     },
     reactions: [
       {

@@ -12,21 +12,18 @@ export class AttachmentService extends GenericService<typeof Attachment> {
     super(Attachment);
   }
 
-  // ✅ DEFINITIVE FIX: This function is now aligned with the corrected user session data.
   async uploadSingleAttachment(
     file: Express.Multer.File,
     folderName: string,
     user: any, // user is the decoded token payload
     attachedToType: string
   ) {
-    // Use `userId` from the token payload for creating a unique path.
     const pathId = user.userId;
 
     const uploadedFileUrl = await uploadFile({
       fileBuffer: file.buffer,
-      // Use `companyId` from the token payload.
       companyId: user.companyId || 'aim-construction',
-      projectId: pathId, // Using userId for uniqueness in this context
+      projectId: pathId, 
       originalname: file.originalname,
     });
 
@@ -34,13 +31,12 @@ export class AttachmentService extends GenericService<typeof Attachment> {
       ? AttachmentType.image
       : AttachmentType.document;
 
-    // Create the attachment record using `userId` from the token.
     const newAttachment = await this.create({
       attachment: uploadedFileUrl,
       attachmentType: fileType,
       attachedToType: attachedToType,
-      attachedToId: user.userId, // The attachment is linked to the user themselves
-      uploaderId: user.userId,
+      attachedToId: user.userId, 
+      uploadedByUserId: user.userId, // ✅ Fixed: changed uploaderId to uploadedByUserId
       uploaderRole: user.role,
     } as any);
 
@@ -51,7 +47,7 @@ export class AttachmentService extends GenericService<typeof Attachment> {
     file: Express.Multer.File,
     metadata: {
       projectId: string;
-      user: any; // user is the decoded token payload
+      user: any; 
       attachedToType: string;
       customName?: string;
     }
@@ -60,7 +56,6 @@ export class AttachmentService extends GenericService<typeof Attachment> {
 
     const uploadedFileUrl = await uploadFile({
       fileBuffer: file.buffer,
-      // ✅ FIX: Use `companyId` from the token payload.
       companyId: user.companyId || 'aim-construction',
       projectId: projectId,
       originalname: file.originalname,
@@ -76,8 +71,7 @@ export class AttachmentService extends GenericService<typeof Attachment> {
       attachedToType: attachedToType,
       attachedToId: projectId,
       projectId: projectId,
-      // ✅ FIX: Use `userId` from the token payload.
-      uploaderId: user.userId,
+      uploadedByUserId: user.userId, // ✅ Fixed: changed uploaderId to uploadedByUserId
       uploaderRole: user.role,
       customName: customName || file.originalname,
     } as any);
@@ -85,16 +79,17 @@ export class AttachmentService extends GenericService<typeof Attachment> {
     return newAttachment;
   }
 
+  // ✅ Updated to accept customName
   async uploadAndLinkAttachment(
     file: Express.Multer.File,
     projectId: string,
     noteId: string,
-    user: any, // user is the decoded token payload
-    attachedToType: string
+    user: any, 
+    attachedToType: string,
+    customName?: string 
   ) {
     const uploadedFileUrl = await uploadFile({
       fileBuffer: file.buffer,
-      // ✅ FIX: Use `companyId` from the token payload.
       companyId: user.companyId || 'aim-construction',
       projectId: projectId,
       originalname: file.originalname,
@@ -113,14 +108,17 @@ export class AttachmentService extends GenericService<typeof Attachment> {
       attachedToType: attachedToType,
       attachedToId: noteId,
       projectId: projectId,
-      // ✅ FIX: Use `userId` from the token payload.
-      uploaderId: user.userId,
+      uploadedByUserId: user.userId, // ✅ Fixed: changed uploaderId to uploadedByUserId
       uploaderRole: user.role,
+      customName: customName || file.originalname, // ✅ Save custom name
     } as any);
 
-    await Note.findByIdAndUpdate(noteId, {
-      $push: { attachments: newAttachment._id },
-    });
+    // If it's a note, push to attachments array
+    if (attachedToType === 'note') {
+        await Note.findByIdAndUpdate(noteId, {
+        $push: { attachments: newAttachment._id },
+        });
+    }
 
     return newAttachment;
   }

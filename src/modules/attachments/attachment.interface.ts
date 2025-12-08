@@ -15,10 +15,12 @@ export interface IAttachment {
   attachedToType:
     | AttachedToType.note
     | AttachedToType.task
-    | AttachedToType.contract; // INFO :  contract pore add kora hoise ..
+    | AttachedToType.contract
+    | AttachedToType.project; // Added project to interface
   projectId: Types.ObjectId | string;
   uploadedByUserId?: Types.ObjectId | string;
   uploaderRole: UploaderRole.projectManager | UploaderRole.projectSupervisor;
+  customName?: string; // ✅ Added customName field
   viewStatus?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
