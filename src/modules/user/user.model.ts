@@ -96,6 +96,28 @@ const userSchema = new Schema<TUser, UserModal>(
       default: 0,
     },
     lockUntil: { type: Date },
+    //Subscription service
+    subscriptionPlan: {
+      type: String,
+      enum: ['freeTrial', 'monthly', 'yearly', 'none'],
+      default: 'freeTrial', // new managers start on free trial
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ['trial', 'active', 'expired', 'canceled', 'none'],
+      default: 'trial',
+    },
+    subscriptionTrialEnd: { type: Date, default: null },
+    subscriptionCurrentPeriodEnd: { type: Date, default: null },
+
+    // who “owns” the subscription that covers this user
+    subscriptionOwnerUserId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    appleOriginalTransactionId: { type: String, default: null },
+    appleLatestTransactionId: { type: String, default: null },
   },
   {
     timestamps: true,

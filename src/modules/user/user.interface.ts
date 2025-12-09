@@ -30,6 +30,13 @@ export interface TUser extends Document {
   lockUntil: Date | undefined;
   createdAt: Date;
   updatedAt: Date;
+  subscriptionPlan?: 'freeTrial' | 'monthly' | 'yearly' | 'none';
+  subscriptionStatus?: 'trial' | 'active' | 'expired' | 'canceled' | 'none';
+  subscriptionTrialEnd?: Date | null;
+  subscriptionCurrentPeriodEnd?: Date | null;
+  subscriptionOwnerUserId?: Types.ObjectId | string | null;
+  appleOriginalTransactionId?: string | null;
+  appleLatestTransactionId?: string | null;
 }
 
 export interface UserModal extends Model<TUser> {
