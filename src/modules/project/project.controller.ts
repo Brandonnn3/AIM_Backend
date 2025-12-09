@@ -24,7 +24,7 @@ const createProject: RequestHandler = catchAsync(async (req, res) => {
   
   // ✅ FIX: Use provided status, or default to 'planning' if missing
   if (!req.body.projectStatus) {
-      req.body.projectStatus = 'planning';
+      req.body.projectStatus = 'Not Started';
   }
 
   if (req.body.projectSuperVisorId) {
