@@ -64,6 +64,12 @@ router
     UserController.updateProfileImage
   );
 
+router.get(
+  '/subscription-status',
+  auth(),                 // your existing auth middleware
+  UserController.getMySubscriptionStatus
+);
+
 router
   .route('/update-profile/:userId')
   .put(

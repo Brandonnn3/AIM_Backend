@@ -353,6 +353,70 @@ const getAllProjectSupervisorsByProjectManagerId = catchAsync(
   }
 );
 
+// Subscription Service
+const getMySubscriptionStatus = catchAsync(async (req, res) => {
+  const authUser = req.user as any;
+  if (!authUser || !authUser.userId) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are unauthenticated.');
+  }
+
+  const me = await User.findById(authUser.userId)
+    .select(
+      'fname lname email role superVisorsManagerId ' +
+      'subscriptionPlan subscriptionStatus subscriptionTrialEnd ' +
+      'subscriptionCurrentPeriodEnd subscriptionOwnerUserId'
+    );
+
+  if (!me) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'User not found');
+  }
+
+  // Figure out whose subscription actually covers this user
+  let owner = me;
+
+  // If supervisor, try to use manager as subscription owner
+  if (me.role === 'projectSupervisor' && me.superVisorsManagerId) {
+    const manager = await User.findById(me.superVisorsManagerId).select(
+      'fname lname email ' +
+      'subscriptionPlan subscriptionStatus subscriptionTrialEnd ' +
+      'subscriptionCurrentPeriodEnd'
+    );
+    if (manager) {
+      owner = manager as any;
+    }
+  }
+
+  const now = new Date();
+  const endDate =
+    owner.subscriptionStatus === 'trial'
+      ? owner.subscriptionTrialEnd
+      : owner.subscriptionCurrentPeriodEnd;
+
+  let daysRemaining = 0;
+  if (endDate instanceof Date) {
+    const diffMs = endDate.getTime() - now.getTime();
+    daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  }
+
+  sendResponse(res, {
+    code: StatusCodes.OK,
+    data: {
+      role: me.role,
+      subscriptionOwner: {
+        id: owner._id,
+        name: `${owner.fname ?? ''} ${owner.lname ?? ''}`.trim(),
+        email: owner.email,
+      },
+      subscriptionPlan: owner.subscriptionPlan ?? 'none',
+      subscriptionStatus: owner.subscriptionStatus ?? 'none',
+      trialEndDate: owner.subscriptionTrialEnd,
+      currentPeriodEnd: owner.subscriptionCurrentPeriodEnd,
+      daysRemaining,
+    },
+    message: 'Subscription status fetched successfully',
+  });
+});
+
 export const UserController = {
   createAdminOrSuperAdmin,
   getAllUsers,
@@ -373,4 +437,5 @@ export const UserController = {
   getMySupervisors,
   cancelSupervisorInvitation,
   removeSupervisorFromCompany,
+  getMySubscriptionStatus,
 };
