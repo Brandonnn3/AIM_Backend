@@ -21,17 +21,20 @@ const taskService = new TaskService();
 const createAttachment = catchAsync(async (req, res) => {
   const user = req.user as TUser;
   const { noteId, projectId, noteOrTaskOrProject, taskId, customName } = req.body;
-  
+
   const attachedToId = noteId || taskId;
   if (!attachedToId || !projectId) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'A projectId and either a noteId or taskId are required to upload an attachment.');
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      'A projectId and either a noteId or taskId are required to upload an attachment.',
+    );
   }
-  
+
   const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
   if (!files || !files.attachments || files.attachments.length === 0) {
     throw new ApiError(
       StatusCodes.BAD_REQUEST,
-      'Please upload at least one attachment'
+      'Please upload at least one attachment',
     );
   }
 
@@ -43,44 +46,41 @@ const createAttachment = catchAsync(async (req, res) => {
         attachedToId,
         user,
         noteOrTaskOrProject || AttachedToType.note,
-        customName 
+        customName,
       );
-    })
+    }),
   );
 
   const projectNameAndSuperVisorId = await Project.findById(
-    req.body.projectId
+    req.body.projectId,
   ).select('projectSuperVisorIds projectName projectManagerId');
 
   if (
-      projectNameAndSuperVisorId &&
-      projectNameAndSuperVisorId.projectSuperVisorIds &&
-      projectNameAndSuperVisorId.projectSuperVisorIds.length > 0 
+    projectNameAndSuperVisorId &&
+    projectNameAndSuperVisorId.projectSuperVisorIds &&
+    projectNameAndSuperVisorId.projectSuperVisorIds.length > 0
   ) {
-      for (const supervisorId of projectNameAndSuperVisorId.projectSuperVisorIds) {
-          const notificationPayload: INotification = {
-              title: `New attachment of ${projectNameAndSuperVisorId.projectName} ${noteOrTaskOrProject} has been uploaded by ${(user as any).fname}`,
-              receiverId: supervisorId, 
-              notificationFor: 'attachment',
-              role: UploaderRole.projectSupervisor,
-              isDeleted: false,
-          };
-          const notification = await NotificationService.addNotification(
-              notificationPayload
-          );
-          if (io) {
-              io.to(supervisorId.toString()).emit(
-                  'newNotification',
-                  {
-                      code: StatusCodes.OK,
-                      message: 'New notification',
-                      data: notification,
-                  }
-              );
-          }
+    for (const supervisorId of projectNameAndSuperVisorId.projectSuperVisorIds) {
+      const notificationPayload: INotification = {
+        title: `New attachment of ${projectNameAndSuperVisorId.projectName} ${noteOrTaskOrProject} has been uploaded by ${(user as any).fname}`,
+        receiverId: supervisorId,
+        notificationFor: 'attachment',
+        role: UploaderRole.projectSupervisor,
+        isDeleted: false,
+      };
+      const notification = await NotificationService.addNotification(
+        notificationPayload,
+      );
+      if (io) {
+        io.to(supervisorId.toString()).emit('newNotification', {
+          code: StatusCodes.OK,
+          message: 'New notification',
+          data: notification,
+        });
       }
+    }
   }
-  
+
   sendResponse(res, {
     code: StatusCodes.OK,
     data: attachments,
@@ -124,7 +124,7 @@ const getAllAttachmentWithPagination = catchAsync(async (req, res) => {
 const updateById = catchAsync(async (req, res) => {
   const result = await attachmentService.updateById(
     req.params.attachmentId,
-    req.body
+    req.body,
   );
   sendResponse(res, {
     code: StatusCodes.OK,
@@ -135,57 +135,74 @@ const updateById = catchAsync(async (req, res) => {
 });
 
 const deleteById = catchAsync(async (req, res) => {
-  // ✅ FIX: Cast to 'any' to avoid TUser missing 'userId' and strict enum checks
-  const user = req.user as any; 
+  const user = req.user as any;
   const attachment = await attachmentService.getById(req.params.attachmentId);
-  
+
   if (!attachment) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Attachment not found');
   }
 
-  // ✅ Safe comparison for Ownership
-  // We cast attachment to any to safely check for 'uploaderId' (legacy field) without TS errors
-  const isOwner = user.userId === (attachment.uploadedByUserId?.toString() || (attachment as any).uploaderId?.toString());
-  
-  // ✅ Safe comparison for Role (Strings vs Enums)
-  const isManager = user.role === 'projectManager' || user.role === 'admin';
+  // ✅ Normalize user id & role
+  const userId =
+    user?.userId?.toString?.() ??
+    user?._id?.toString?.() ??
+    user?.id?.toString?.();
 
-  if (!isOwner && !isManager) {
+  const role = (user?.role as string) || '';
+
+  // ✅ Owner check (supports legacy uploaderId)
+  const isOwner =
+    attachment.uploadedByUserId?.toString() === userId ||
+    (attachment as any).uploaderId?.toString() === userId;
+
+  // ✅ Role-based allow
+  const isManagerOrAdmin =
+    role === 'projectManager' ||
+    role === 'projectSupervisor' ||
+    role === 'admin';
+
+  if (!isOwner && !isManagerOrAdmin) {
     throw new ApiError(
       StatusCodes.FORBIDDEN,
-      'You are not authorized to delete this attachment'
+      'You are not authorized to delete this attachment',
     );
   }
 
   let results;
-  
-  if (attachment.attachedToType == 'project') {
+
+  if (attachment.attachedToType === 'project') {
     results = await attachmentService.deleteById(req.params.attachmentId);
-    if (results) await attachmentService.deleteAttachment(results.attachment);
-  } 
-  else if (attachment.attachedToType == 'note') {
+    if (results) {
+      await attachmentService.deleteAttachment(results.attachment);
+    }
+  } else if (attachment.attachedToType === 'note') {
     const note = await noteService.getById(attachment.attachedToId);
     if (note) {
       note.attachments = note.attachments.filter(
-        (attachmentId: any) => attachmentId._id.toString() !== req.params.attachmentId
+        (attachmentId: any) =>
+          attachmentId._id.toString() !== req.params.attachmentId,
       );
       await noteService.updateById(note._id, note);
     }
     results = await attachmentService.deleteById(req.params.attachmentId);
-    if (results) await attachmentService.deleteAttachment(results.attachment);
-  } 
-  else if (attachment.attachedToType == 'task') {
+    if (results) {
+      await attachmentService.deleteAttachment(results.attachment);
+    }
+  } else if (attachment.attachedToType === 'task') {
     const task = await taskService.getById(attachment.attachedToId);
     if (task) {
       task.attachments = task.attachments.filter(
-        (attachmentId: any) => attachmentId._id.toString() !== req.params.attachmentId
+        (attachmentId: any) =>
+          attachmentId._id.toString() !== req.params.attachmentId,
       );
       await taskService.updateById(task._id, task);
     }
     results = await attachmentService.deleteById(req.params.attachmentId);
-    if (results) await attachmentService.deleteAttachment(results.attachment);
+    if (results) {
+      await attachmentService.deleteAttachment(results.attachment);
+    }
   }
-  
+
   sendResponse(res, {
     code: StatusCodes.OK,
     message: 'Attachments deleted successfully',
@@ -196,7 +213,7 @@ const deleteById = catchAsync(async (req, res) => {
 
 const addOrRemoveReact = catchAsync(async (req, res) => {
   const { attachmentId } = req.params;
-  const userId = (req.user as any).userId; 
+  const userId = (req.user as any).userId;
   if (!userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'User ID not found');
   }
@@ -214,7 +231,7 @@ const deleteByFileUrl = catchAsync(async (req, res) => {
   if (!fileUrl) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Please provide a file URL');
   }
-  
+
   const result = await attachmentService.deleteAttachment(fileUrl);
   sendResponse(res, {
     code: StatusCodes.OK,
@@ -232,5 +249,5 @@ export const AttachmentController = {
   updateById,
   deleteById,
   addOrRemoveReact,
-  deleteByFileUrl
+  deleteByFileUrl,
 };

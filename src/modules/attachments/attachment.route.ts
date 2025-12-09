@@ -10,51 +10,41 @@ import { AttachmentController } from './attachment.controller';
 
 const router = express.Router();
 
-//info : pagination route must be before the route with params
-router.route('/paginate').get(
-  auth('common'),
-  AttachmentController.getAllAttachmentWithPagination
-);
+// info : pagination route must be before the route with params
+router
+  .route('/paginate')
+  .get(auth('common'), AttachmentController.getAllAttachmentWithPagination);
 
-router.route('/:attachmentId').get(
-  auth('common'),
-  AttachmentController.getAAttachment
-);
+// ✅ All attachments (list)
+router
+  .route('/')
+  .get(auth('common'), AttachmentController.getAllAttachment);
 
-router.route('/update/:attachmentId').put(
-  auth('common'),
-  // validateRequest(UserValidation.createUserValidationSchema),
-  AttachmentController.updateById
-);
+// ✅ Get / Update single attachment
+//    - GET    /api/v1/attachment/:attachmentId
+//    - PUT    /api/v1/attachment/:attachmentId   <-- used by Flutter for rename
+router
+  .route('/:attachmentId')
+  .get(auth('common'), AttachmentController.getAAttachment)
+  .put(auth('common'), AttachmentController.updateById);
 
-router.route('/addOrRemoveReact/:attachmentId').put(
-  auth('common'),
-  // validateRequest(UserValidation.createUserValidationSchema),
-  AttachmentController.addOrRemoveReact
-);
+// ✅ React toggle
+router
+  .route('/addOrRemoveReact/:attachmentId')
+  .put(auth('common'), AttachmentController.addOrRemoveReact);
 
-router.route('/').get(
-  auth('common'),
-  AttachmentController.getAllAttachment
-);
+// ✅ Delete by id
+// allow projectManager / projectSupervisor / admin (adjust roles as your auth() expects)
+router
+  .route('/delete/:attachmentId')
+  .delete(
+    auth('projectManager', 'projectSupervisor', 'admin'),
+    AttachmentController.deleteById,
+  );
 
-// router.route('/create').post(
-//   auth('projectManager'),
-//   // validateRequest(UserValidation.createUserValidationSchema),
-//   AttachmentController.createAttachment
-// );
-
-//[🚧][🧑‍💻✅][🧪🆗] 
-router.route('/delete/:attachmentId').delete(
-  auth('common'),
-  AttachmentController.deleteById
-);
-
-//[🚧][🧑‍💻✅][🧪🆗] 
-// Working Perfectly ... 
-router.route("/delete-by-file-url").delete(
-  AttachmentController.deleteByFileUrl  
-)
-
+// ✅ Delete by file URL (you can add auth here if you want)
+router
+  .route('/delete-by-file-url')
+  .delete(AttachmentController.deleteByFileUrl);
 
 export const AttachmentRoutes = router;
