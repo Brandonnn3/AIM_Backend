@@ -21,20 +21,22 @@ router
   .get(auth('common'), AttachmentController.getAllAttachment);
 
 // ✅ Get / Update single attachment
-//    - GET    /api/v1/attachment/:attachmentId
-//    - PUT    /api/v1/attachment/:attachmentId   <-- used by Flutter for rename
+//    - GET /api/v1/attachment/:attachmentId
+//    - PUT /api/v1/attachment/:attachmentId   <-- used for rename
 router
   .route('/:attachmentId')
   .get(auth('common'), AttachmentController.getAAttachment)
-  .put(auth('common'), AttachmentController.updateById);
+  .put(
+    auth('projectManager', 'projectSupervisor', 'admin'),
+    AttachmentController.updateById,
+  );
 
 // ✅ React toggle
 router
   .route('/addOrRemoveReact/:attachmentId')
   .put(auth('common'), AttachmentController.addOrRemoveReact);
 
-// ✅ Delete by id
-// allow projectManager / projectSupervisor / admin (adjust roles as your auth() expects)
+// ✅ Delete by id (already working)
 router
   .route('/delete/:attachmentId')
   .delete(
@@ -42,7 +44,7 @@ router
     AttachmentController.deleteById,
   );
 
-// ✅ Delete by file URL (you can add auth here if you want)
+// ✅ Delete by file URL
 router
   .route('/delete-by-file-url')
   .delete(AttachmentController.deleteByFileUrl);

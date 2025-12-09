@@ -121,19 +121,59 @@ const getAllAttachmentWithPagination = catchAsync(async (req, res) => {
   });
 });
 
+// ✅ SHARED helper to normalize user + check permission
+function buildAttachmentPermission(user: any, attachment: any) {
+  const userId =
+    user?.userId?.toString?.() ??
+    user?._id?.toString?.() ??
+    user?.id?.toString?.();
+
+  const role = (user?.role as string) || '';
+
+  const isOwner =
+    attachment.uploadedByUserId?.toString() === userId ||
+    (attachment as any).uploaderId?.toString() === userId;
+
+  const isManagerOrAdmin =
+    role === 'projectManager' ||
+    role === 'projectSupervisor' ||
+    role === 'admin';
+
+  return { isOwner, isManagerOrAdmin };
+}
+
+// ---------- RENAME (UPDATE) ----------
 const updateById = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const attachment = await attachmentService.getById(req.params.attachmentId);
+
+  if (!attachment) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'Attachment not found');
+  }
+
+  const { isOwner, isManagerOrAdmin } = buildAttachmentPermission(user, attachment);
+
+  if (!isOwner && !isManagerOrAdmin) {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      'You are not authorized to update this attachment',
+    );
+  }
+
   const result = await attachmentService.updateById(
     req.params.attachmentId,
     req.body,
   );
+
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
-    message: 'Project updated successfully',
+    message: 'Attachment updated successfully',
     success: true,
   });
 });
 
+// ---------- DELETE ----------
 const deleteById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const attachment = await attachmentService.getById(req.params.attachmentId);
@@ -142,24 +182,7 @@ const deleteById = catchAsync(async (req, res) => {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Attachment not found');
   }
 
-  // ✅ Normalize user id & role
-  const userId =
-    user?.userId?.toString?.() ??
-    user?._id?.toString?.() ??
-    user?.id?.toString?.();
-
-  const role = (user?.role as string) || '';
-
-  // ✅ Owner check (supports legacy uploaderId)
-  const isOwner =
-    attachment.uploadedByUserId?.toString() === userId ||
-    (attachment as any).uploaderId?.toString() === userId;
-
-  // ✅ Role-based allow
-  const isManagerOrAdmin =
-    role === 'projectManager' ||
-    role === 'projectSupervisor' ||
-    role === 'admin';
+  const { isOwner, isManagerOrAdmin } = buildAttachmentPermission(user, attachment);
 
   if (!isOwner && !isManagerOrAdmin) {
     throw new ApiError(
