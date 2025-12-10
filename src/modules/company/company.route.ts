@@ -1,10 +1,12 @@
 import express from 'express';
 import auth from '../../middlewares/auth';
 import { CompanyController } from './company.controller';
+// 🔹 ADD THIS IMPORT (Adjust path if your helper is in a different folder)
+import { FileUploadHelper } from '../../helpers/fileUploadHelper';
 
 const router = express.Router();
 
-// ✅ NEW: Route for a manager to get their own company's details.
+// Route for a manager to get their own company's details.
 router.route('/my-company').get(
     auth('projectManager'),
     CompanyController.getMyCompany
@@ -15,9 +17,10 @@ router.route('/setup-profile').post(
     CompanyController.setupCompanyProfile
 );
 
-// ✅ UPDATED: Changed param from :contractId to :companyId for clarity.
+// ✅ UPDATED: Added FileUploadHelper to process the 'logo' file
 router.route('/update/:companyId').put(
   auth('projectManager'),
+  FileUploadHelper.upload.single('logo'), // 👈 THIS WAS MISSING
   CompanyController.updateById
 );
 
@@ -28,7 +31,6 @@ router.route('/getByName').post(
     CompanyController.getACompanyByName
 );
 
-// ✅ UPDATED: Changed param from :contractId to :companyId.
 router
   .route('/delete/:companyId')
   .delete(auth('projectManager'), CompanyController.deleteById);
