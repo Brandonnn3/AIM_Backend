@@ -28,6 +28,7 @@ const attachmentSchema = new Schema<IAttachment>(
         AttachedToType.task,
         AttachedToType.project,
         AttachedToType.contract,
+        AttachedToType.company,
         'user', 
       ],
       type: String,

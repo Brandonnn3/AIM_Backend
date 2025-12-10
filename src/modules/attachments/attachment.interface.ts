@@ -16,7 +16,8 @@ export interface IAttachment {
     | AttachedToType.note
     | AttachedToType.task
     | AttachedToType.contract
-    | AttachedToType.project; // Added project to interface
+    | AttachedToType.project
+    | AttachedToType.company; 
   projectId: Types.ObjectId | string;
   uploadedByUserId?: Types.ObjectId | string;
   uploaderRole: UploaderRole.projectManager | UploaderRole.projectSupervisor;

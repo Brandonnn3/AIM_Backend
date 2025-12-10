@@ -8,6 +8,7 @@ export enum AttachedToType {
     task = 'task',
     project = 'project',
     contract = 'contract',
+    company = 'company',
 }
   
 export enum UploaderRole {
