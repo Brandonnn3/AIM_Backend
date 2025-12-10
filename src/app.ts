@@ -24,8 +24,6 @@ app.use(Morgan.errorHandler);
 // ---------------------------
 // CORS
 // ---------------------------
-// Mobile apps don’t need CORS, but your admin tools/browser do.
-// Include your Render URL and local dev origins.
 const allowedOrigins = new Set([
   'http://localhost:8084',
   'http://localhost:3000',
@@ -36,7 +34,6 @@ const allowedOrigins = new Set([
 app.use(
   cors({
     origin: (origin, cb) => {
-      // Allow non-browser clients (no Origin header) and known web origins
       if (!origin || allowedOrigins.has(origin)) return cb(null, true);
       return cb(null, false);
     },
@@ -52,11 +49,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // ---------------------------
-// Static (uploads) — dev only
+// Static (uploads) — ALWAYS ENABLED
 // ---------------------------
-if (process.env.NODE_ENV === 'development') {
-  app.use('/uploads', express.static(path.join(__dirname, '../uploads/')));
-}
+// 🔹 CHANGED: Removed the 'if (dev)' check so images load in all environments
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ---------------------------
 // i18n
@@ -75,7 +71,7 @@ app.get('/', (_req: Request, res: Response) => {
 });
 
 // =================================================================
-// ✨ TEMPORARY DEBUGGING BLOCK (kept from your version)
+// ✨ TEMPORARY DEBUGGING BLOCK
 // =================================================================
 app.use('/api/v1', (req, _res, next) => {
   if (req.method === 'PUT' || req.method === 'POST') {
