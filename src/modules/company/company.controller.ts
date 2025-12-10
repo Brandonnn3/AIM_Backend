@@ -5,12 +5,8 @@ import ApiError from '../../errors/ApiError';
 import { CompanyService } from './company.service';
 import { Company } from './company.model';
 import { NotificationService } from '../notification/notification.services';
-// 🔹 ADDED: Required for image uploads
-import { AttachmentService } from '../attachments/attachment.service';
-import { FolderName } from '../../enums/folderNames'; 
 
 const companyService = new CompanyService();
-const attachmentService = new AttachmentService();
 
 const getMyCompany = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -24,7 +20,7 @@ const getMyCompany = catchAsync(async (req, res) => {
 });
 
 const createCompany = catchAsync(async (req, res) => {
-  if(req.body.name === ""){
+  if (req.body.name === "") {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Company name is required');
   }
   const existingCompany = await Company.findOne({
@@ -49,7 +45,7 @@ const getACompanyByName = catchAsync(async (req, res) => {
   if (typeof companyName !== 'string' || companyName === "") {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Company name is required and must be a string.');
   }
-  
+
   const result = await Company.find({
     name: { $regex: new RegExp(companyName, 'i') },
   });
@@ -62,7 +58,7 @@ const getACompanyByName = catchAsync(async (req, res) => {
       success: true,
     });
   }
-  
+
   sendResponse(res, {
     code: StatusCodes.OK,
     data: result,
@@ -81,20 +77,15 @@ const getAllCompany = catchAsync(async (req, res) => {
   });
 });
 
-// 🔹 MODIFIED: Now handles file uploads via req.file
+// 🔹 UPDATED: Local File Strategy (Matches Profile Image Logic)
 const updateById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const { companyId } = req.params;
 
-  // New Logic: If a file is uploaded, process it and add URL to body
+  // Logic: If file exists, save the LOCAL path string.
+  // This matches how the FileUploadHelper saves files to the 'uploads' root.
   if (req.file) {
-    const attachmentResult = await attachmentService.uploadSingleAttachment(
-      req.file,
-      FolderName.company, // Ensure 'company' is in your FolderName enum
-      user,
-      'company'
-    );
-    req.body.logo = attachmentResult.attachment; 
+    req.body.logo = '/uploads/' + req.file.filename;
   }
 
   const result = await companyService.updateCompanyById(
@@ -151,21 +142,21 @@ const joinCompany = catchAsync(async (req, res) => {
 });
 
 const setupCompanyProfile = catchAsync(async (req, res) => {
-    const user = req.user as any;
-    const companyProfileData = req.body;
+  const user = req.user as any;
+  const companyProfileData = req.body;
 
-    if (!user) {
-        throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not authenticated.');
-    }
+  if (!user) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'User not authenticated.');
+  }
 
-    const result = await companyService.setupCompanyProfile(companyProfileData, user);
+  const result = await companyService.setupCompanyProfile(companyProfileData, user);
 
-    sendResponse(res, {
-        code: StatusCodes.CREATED,
-        data: result,
-        message: 'Company profile created and user joined successfully.',
-        success: true,
-    });
+  sendResponse(res, {
+    code: StatusCodes.CREATED,
+    data: result,
+    message: 'Company profile created and user joined successfully.',
+    success: true,
+  });
 });
 
 export const CompanyController = {
