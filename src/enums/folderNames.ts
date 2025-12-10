@@ -4,4 +4,5 @@ export enum FolderName {
     aimConstruction = "aim-construction/aimConstruction",
     user = "aim-construction/user",
     project = "aim-construction/project",
+    company = "aim-construction/company",
 }
