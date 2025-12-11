@@ -16,7 +16,7 @@ const register = catchAsync(async (req, res) => {
   const result = await AuthService.createUser(req.body);
   sendResponse(res, {
     code: StatusCodes.CREATED,
-    message: 'User created successfully',
+    message: 'User created successfully, please verify your email',
     data: result,
     success: true,
   });
@@ -40,19 +40,15 @@ const login = catchAsync(async (req, res) => {
   });
 });
 
-// ✅ GOOGLE LOGIN (FIXED AUDIENCE ISSUE)
+// ✅ GOOGLE LOGIN (FIXED JSON STRUCTURE)
 const googleLogin = catchAsync(async (req: Request, res: Response) => {
   const { idToken, fcmToken, role } = req.body;
 
-  // 1. Verify Google Token
-  // We allow BOTH the Web Client ID (from config) AND the iOS Client ID (from your logs)
   const ticket = await googleClient.verifyIdToken({
     idToken: idToken,
     audience: [
-        config.google_client_id, // Web Client ID
-        // 👇 This is the iOS ID from your logs. It matches the token coming from the app.
+        config.google_client_id, 
         '962364258936-3qprahmqcnf3ppgelbr6i1oin0k7ggad.apps.googleusercontent.com',
-        // If you have an Android Client ID, add it here too
     ],
   });
   const payload = ticket.getPayload();
@@ -63,7 +59,6 @@ const googleLogin = catchAsync(async (req: Request, res: Response) => {
 
   const { email, given_name, family_name, picture } = payload;
 
-  // 2. Find or Create User
   let user = await User.findOne({ email });
 
   if (!user) {
@@ -85,31 +80,28 @@ const googleLogin = catchAsync(async (req: Request, res: Response) => {
     }
   }
 
-  // 3. Generate Tokens
   const tokens = await AuthService.createToken(user); 
 
+  // ✅ FIX: Removed the extra 'attributes' wrapper here.
+  // sendResponse will handle the structure to match your standard login.
   sendResponse(res, {
     code: StatusCodes.OK,
     message: 'Google login successful',
     data: {
-      attributes: {
-        userWithoutPassword: user,
-        tokens,
-      }
+      userWithoutPassword: user,
+      tokens,
     },
     success: true,
   });
 });
 
-// ✅ APPLE LOGIN
+// ✅ APPLE LOGIN (FIXED JSON STRUCTURE)
 const appleLogin = catchAsync(async (req: Request, res: Response) => {
   const { idToken, firstName, lastName, fcmToken, role } = req.body;
 
   let email;
   try {
     const appleData = await appleSignin.verifyIdToken(idToken, {
-      // ✅ Ensure this matches your iOS Bundle ID (e.g. com.AIM.aimConstructionApp)
-      // If config.apple_client_id is empty, this will fail.
       audience: config.apple_client_id, 
       ignoreExpiration: true,
     });
@@ -144,14 +136,13 @@ const appleLogin = catchAsync(async (req: Request, res: Response) => {
 
   const tokens = await AuthService.createToken(user);
 
+  // ✅ FIX: Removed extra 'attributes' wrapper
   sendResponse(res, {
     code: StatusCodes.OK,
     message: 'Apple login successful',
     data: {
-      attributes: {
-        userWithoutPassword: user,
-        tokens,
-      }
+      userWithoutPassword: user,
+      tokens,
     },
     success: true,
   });
