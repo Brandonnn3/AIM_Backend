@@ -64,8 +64,15 @@ router
 // UPDATE A PROJECT
 router
   .route('/update/:projectId')
-  .put(auth('projectManager'), ProjectController.updateById);
-
+  .put(
+    auth('projectManager'),
+    // ✅ ADDED: Middleware to handle file upload
+    upload.fields([
+      { name: 'projectLogo', maxCount: 1 },
+    ]),
+    ProjectController.updateById
+  );
+  
 // GET ALL PROJECTS (GENERAL)
 router.route('/').get(auth('projectManager', 'projectSupervisor'), ProjectController.getAllProject);
 

@@ -195,9 +195,34 @@ const assignSupervisorsToProject: RequestHandler = catchAsync(async (req, res) =
     });
 });
 
+// ✅ UPDATED: Now handles File Uploads logic for Project Logo
 const updateById: RequestHandler = catchAsync(async (req, res) => {
     const user = req.user as any;
-    const result = await projectService.updateById(req.params.projectId, req.body);
+    const { projectId } = req.params;
+
+    // 1. Check for uploaded files
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    
+    if (files && files.projectLogo && files.projectLogo.length > 0) {
+      const file = files.projectLogo[0];
+      
+      // 2. Upload the new image to storage (S3/Backblaze)
+      const newAttachment = await attachmentService.uploadAndCreateAttachment(
+        file,
+        {
+          projectId: projectId, 
+          user,
+          attachedToType: AttachedToType.project,
+        }
+      );
+
+      // 3. Set the new URL in the body so the database gets updated
+      req.body.projectLogo = newAttachment.attachment;
+    }
+
+    // 4. Perform the standard update (Text fields + new Logo URL if present)
+    const result = await projectService.updateById(projectId, req.body);
+
     if (result && result.projectManagerId) {
       const updaterName = user.userName ? user.userName : 'A manager';
       const notificationPayload: INotification = {
