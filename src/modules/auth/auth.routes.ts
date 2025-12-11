@@ -57,4 +57,8 @@ router.post('/logout', AuthController.logout);
 
 router.post('/refresh-auth', AuthController.refreshToken);
 
+// ✅ NEW SOCIAL LOGIN ROUTES
+router.post('/google-login', AuthController.googleLogin);
+router.post('/apple-login', AuthController.appleLogin);
+
 export const AuthRoutes = router;

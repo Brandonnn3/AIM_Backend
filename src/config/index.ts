@@ -76,4 +76,8 @@ export const config = {
     secretKey: process.env.STRIPE_SECRET_KEY || '',
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
   },
+
+  // ✅ ADDED THESE TWO LINES TO FIX CONTROLLER ERRORS
+  google_client_id: process.env.GOOGLE_CLIENT_ID || '',
+  apple_client_id: process.env.APPLE_CLIENT_ID || '',
 };

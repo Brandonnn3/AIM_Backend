@@ -1,5 +1,3 @@
-// src/modules/auth/auth.service.ts
-
 import moment from 'moment';
 import ApiError from '../../errors/ApiError';
 import { StatusCodes } from 'http-status-codes';
@@ -24,24 +22,25 @@ const validateUserStatus = (user: TUser) => {
   }
 };
 
+// ✅ NEW: Helper to generate tokens for Social Login
+const createToken = async (user: any) => {
+  // Ensure we are working with a plain object
+  const userObject = user.toObject ? user.toObject() : user;
+  
+  // Use your existing TokenService
+  const tokens = await TokenService.accessAndRefreshToken(userObject);
+  return tokens;
+};
+
 const createUser = async (userData: TUser) => {
   const existingUser = await User.findOne({ email: userData.email });
   if (existingUser) {
     if (existingUser.isEmailVerified) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Email already taken');
     } else {
-      // --- START FIX: Do not use findOneAndUpdate ---
-      // We must fetch, update, and .save() to trigger the pre('save') password hash hook.
-
-      // 1. Update all fields from the new registration attempt
       Object.assign(existingUser, userData);
-
-      // 2. Explicitly set the password to ensure the 'isModified' flag is set
       existingUser.password = userData.password;
-
-      // 3. Save the document. This will now correctly trigger the pre('save') hook.
       await existingUser.save();
-      // --- END FIX ---
 
       const verificationToken = await TokenService.createVerifyEmailToken(
         existingUser,
@@ -58,7 +57,6 @@ const createUser = async (userData: TUser) => {
     userData.superVisorsManagerId = null;
   }
 
-  // This is for brand new users. User.create() correctly triggers the 'pre(save)' hook.
   const user = await User.create(userData);
 
   if (userData.companyId) {
@@ -141,14 +139,11 @@ const login = async (email: string, reqpassword: string, fcmToken: string) => {
   if (user.failedLoginAttempts > 0) {
     user.failedLoginAttempts = 0;
     user.lockUntil = undefined;
-    // No need to await this
     user.save();
   }
 
   const userCompany = await UserCompany.findOne({ userId: user._id });
 
-  // --- START FIX: Self-healing logic for companyId ---
-  // If the User.companyId is missing, but a UserCompany link exists, fix it.
   if (userCompany && !user.companyId) {
     console.log(
       `Fixing missing companyId for user: ${user.email}. Setting to: ${userCompany.companyId}`,
@@ -156,7 +151,6 @@ const login = async (email: string, reqpassword: string, fcmToken: string) => {
     user.companyId = userCompany.companyId;
     await user.save();
   }
-  // --- END FIX ---
 
   const userObject = user.toObject();
   const tokens = await TokenService.accessAndRefreshToken(userObject);
@@ -319,6 +313,7 @@ const refreshAuth = async (refreshToken: string) => {
 export const AuthService = {
   createUser,
   login,
+  createToken, // ✅ EXPORTED to fix Controller error
   verifyEmail,
   resetPassword,
   forgotPassword,
